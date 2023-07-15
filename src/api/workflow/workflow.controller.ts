@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { WorkflowService } from "./workflow.service";
+import { asyncHandler } from "@/lib/utils/asyncHandler";
 
 const workflowService = new WorkflowService();
 
@@ -16,14 +17,10 @@ export class WorkflowController {
   private constructor() {}
 
   async startWorkflow(req: Request, res: Response) {
-    const data = await workflowService.startWorkflow();
-
-    if (req.headers?.accept?.includes("application/json")) {
-      const resBody = data.json;
-      return res.status(resBody.statusCode).json(resBody.json);
-    } else {
-      const resBody = data.text;
-      return res.status(resBody.statusCode).send(resBody.text);
+    const [data, error] = await workflowService.startWorkflow();
+    if (error) {
+      return res.status(error?.statusCode).json(error);
     }
+    return res.status(data?.statusCode).json(data);
   }
 }

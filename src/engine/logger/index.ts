@@ -9,9 +9,7 @@ export class Logger {
 
   log(...message: any[]) {
     console.log(message);
-    this.logs.push(
-      [new Date().toJSON(), this.taskName, JSON.stringify(message)].join(" : ")
-    );
+    this.logs.push([new Date().toJSON(), this.taskName, JSON.stringify(message)].join(" : "));
   }
   get Logs() {
     return this.logs;

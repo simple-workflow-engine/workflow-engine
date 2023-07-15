@@ -17,11 +17,7 @@ export class Utilities {
     console.log(params.assignee);
   }
 
-  public async sendNotification(params: {
-    name: string;
-    email: string;
-    payload: string;
-  }) {
+  public async sendNotification(params: { name: string; email: string; payload: string }) {
     console.log(params.name);
     console.log(params.email);
     console.log(params.payload);
@@ -32,37 +28,36 @@ export class Utilities {
     payload?: { [key: string]: any };
     headers: { [key: string]: any };
     method:
-    | "get"
-    | "GET"
-    | "delete"
-    | "DELETE"
-    | "head"
-    | "HEAD"
-    | "options"
-    | "OPTIONS"
-    | "post"
-    | "POST"
-    | "put"
-    | "PUT"
-    | "patch"
-    | "PATCH"
-    | "purge"
-    | "PURGE"
-    | "link"
-    | "LINK"
-    | "unlink"
-    | "UNLINK";
+      | "get"
+      | "GET"
+      | "delete"
+      | "DELETE"
+      | "head"
+      | "HEAD"
+      | "options"
+      | "OPTIONS"
+      | "post"
+      | "POST"
+      | "put"
+      | "PUT"
+      | "patch"
+      | "PATCH"
+      | "purge"
+      | "PURGE"
+      | "link"
+      | "LINK"
+      | "unlink"
+      | "UNLINK";
     queryParams?: { [key: string]: any };
   }) {
     return axios({
       method: params.method,
       url: params.url,
-      ...(params?.payload && { data: params.payload, }),
+      ...(params?.payload && { data: params.payload }),
       headers: params.headers,
       ...(params?.queryParams && {
         params: params.queryParams,
       }),
-
     });
   }
 }

@@ -12,9 +12,7 @@ const logger = winston.createLogger({
   level: "debug",
   format: winston.format.combine(
     enumerateErrorFormat(),
-    process.env.NODE_ENV !== "production"
-      ? winston.format.colorize()
-      : winston.format.uncolorize(),
+    process.env.NODE_ENV !== "production" ? winston.format.colorize() : winston.format.uncolorize(),
     winston.format.splat(),
     winston.format.printf(({ level, message }) => `${level}: ${message}`)
   ),

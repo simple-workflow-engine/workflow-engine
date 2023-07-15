@@ -151,7 +151,8 @@ export class Processor {
 
     // Updated Workflow Status
     let updatedWorkflowStatus: "completed" | "pending" = "pending";
-    const allCompleted = updatedTasks.every((task) => task.status === "completed");
+    const endTask = updatedTasks.find((task) => task.type === "END");
+    const allCompleted = endTask?.status === "completed";
     if (allCompleted) {
       updatedWorkflowStatus = "completed";
     }

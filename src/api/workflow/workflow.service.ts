@@ -1,27 +1,32 @@
-import { ErrorTransformer } from "@/lib/Transformer/Error.transformer";
-import { ResponseTransformer } from "@/lib/Transformer/Response.transformer";
+import { Processor } from "@/engine/processor";
+import { asyncHandler } from "@/lib/utils/asyncHandler";
+import { WorkflowRuntime } from "@/models";
 
 export class WorkflowService {
   constructor() {}
 
-  async startWorkflow() {
-    try {
-      const data = {};
-      return new ResponseTransformer(
-        200,
-        "Workflow started successfully",
-        data
-      );
-    } catch (error) {
-      console.error(error);
-      return new ErrorTransformer(
-        500,
-        "Internal Server Error",
-        "Something went wrong",
-        "WF101",
-        "Because of something",
-        error
-      );
-    }
+  async startWorkflow(): Promise<
+    | [
+        {
+          message: string;
+          data: Record<string, any>;
+          statusCode: number;
+        },
+        null
+      ]
+    | [
+        null,
+        {
+          message: string;
+          error: string;
+          statusCode: number;
+        }
+      ]
+  > {
+    const [] = await asyncHandler(WorkflowRuntime);
+
+    const processor = new Processor();
+
+    return processor.processTask();
   }
 }
