@@ -1,8 +1,8 @@
 import type { FunctionNode } from "../nodes/function";
 
 export interface Task {
-  name: string;
   id: string;
+  name: string;
   next: string[];
   previous: string[];
   params?: {
@@ -14,8 +14,8 @@ export interface Task {
 }
 
 export interface Workflow {
-  name: string;
   id: string;
+  name: string;
   description: string;
   global: {
     [key: string]: any;

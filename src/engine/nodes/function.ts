@@ -20,9 +20,14 @@ export type ResultMap = {
   [key: string]: any;
 };
 
-async function exec(context: Context): Promise<ResultMap> {
-  context.logger("Hello");
-  return {};
+const FunctionString = `
+/**
+ * @returns {Promise<string>} Return JSON.stringify output. If you want to return any object, send it JSON.stringify. For null/undefined, return JSON.stringify({})
+ * @see {@link https://docs.workflow-engine.com/Function_Node}
+ */
+async function handler() {
+  return JSON.stringify({});
 }
+`;
 
-export type FunctionNode = typeof exec;
+export type FunctionNode = typeof FunctionString;

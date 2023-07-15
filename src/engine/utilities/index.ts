@@ -2,6 +2,7 @@ import axios from "axios";
 
 export class Utilities {
   url: string;
+
   constructor(url: string) {
     this.url = url;
   }
@@ -31,34 +32,37 @@ export class Utilities {
     payload?: { [key: string]: any };
     headers: { [key: string]: any };
     method:
-      | "get"
-      | "GET"
-      | "delete"
-      | "DELETE"
-      | "head"
-      | "HEAD"
-      | "options"
-      | "OPTIONS"
-      | "post"
-      | "POST"
-      | "put"
-      | "PUT"
-      | "patch"
-      | "PATCH"
-      | "purge"
-      | "PURGE"
-      | "link"
-      | "LINK"
-      | "unlink"
-      | "UNLINK";
-    queryParams: { [key: string]: any };
+    | "get"
+    | "GET"
+    | "delete"
+    | "DELETE"
+    | "head"
+    | "HEAD"
+    | "options"
+    | "OPTIONS"
+    | "post"
+    | "POST"
+    | "put"
+    | "PUT"
+    | "patch"
+    | "PATCH"
+    | "purge"
+    | "PURGE"
+    | "link"
+    | "LINK"
+    | "unlink"
+    | "UNLINK";
+    queryParams?: { [key: string]: any };
   }) {
     return axios({
       method: params.method,
       url: params.url,
-      data: params.payload,
+      ...(params?.payload && { data: params.payload, }),
       headers: params.headers,
-      params: params.queryParams ?? {},
+      ...(params?.queryParams && {
+        params: params.queryParams,
+      }),
+
     });
   }
 }
