@@ -2,6 +2,7 @@ import axios from "axios";
 
 export class Utilities {
   url: string;
+
   constructor(url: string) {
     this.url = url;
   }
@@ -16,11 +17,7 @@ export class Utilities {
     console.log(params.assignee);
   }
 
-  public async sendNotification(params: {
-    name: string;
-    email: string;
-    payload: string;
-  }) {
+  public async sendNotification(params: { name: string; email: string; payload: string }) {
     console.log(params.name);
     console.log(params.email);
     console.log(params.payload);
@@ -51,14 +48,16 @@ export class Utilities {
       | "LINK"
       | "unlink"
       | "UNLINK";
-    queryParams: { [key: string]: any };
+    queryParams?: { [key: string]: any };
   }) {
     return axios({
       method: params.method,
       url: params.url,
-      data: params.payload,
+      ...(params?.payload && { data: params.payload }),
       headers: params.headers,
-      params: params.queryParams ?? {},
+      ...(params?.queryParams && {
+        params: params.queryParams,
+      }),
     });
   }
 }

@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import WorkflowRouter from "@/api/workflow/workflow.router";
 import { EnvironmentVariables } from "./env/index";
 import cors from "cors";
@@ -5,8 +6,7 @@ import { config } from "dotenv";
 import type { Express } from "express";
 import express from "express";
 import { connect } from "mongoose";
-import morgan from "morgan";
-import "reflect-metadata";
+import logger, { morganMiddleware } from "./lib/utils/logger";
 
 const envVarsObj = EnvironmentVariables.getInstance();
 const EnvVars = envVarsObj.EnvVars;
@@ -24,7 +24,8 @@ async function bootstrap() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cors());
-  app.use(morgan("dev"));
+
+  app.use(morganMiddleware);
 
   app.use("/workflow", WorkflowRouter);
 
@@ -42,19 +43,19 @@ async function bootstrap() {
     ].join("")
   )
     .then(() => {
-      console.info("MongoDB connected successfully");
+      logger.info("MongoDB connected successfully");
       app.listen(PORT, HOST, () => {
-        console.info(`Server Started on http://${HOST}:${PORT}`);
+        logger.info(`Server Started on http://${HOST}:${PORT}`);
       });
     })
     .catch((error) => {
-      console.info("MongoDB connection failed");
-      console.error(error);
+      logger.info("MongoDB connection failed");
+      logger.error(error);
     });
 }
 
 bootstrap().catch((error) => {
-  console.error(error);
+  logger.error(error);
 });
 
 export { app };

@@ -8,10 +8,15 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
+    "sourceMap": true,
     "strict": true,
     "skipLibCheck": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@models/*": ["./src/models/*"],
+      "@engine/*": ["./src/engine/*"],
+      "@lib/*": ["./src/lib/*"],
+      "@api/*": ["./src/api/*"]
     },
     "plugins": [
       {

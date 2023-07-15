@@ -1,21 +1,21 @@
 import type { FunctionNode } from "../nodes/function";
 
 export interface Task {
-  name: string;
   id: string;
+  name: string;
   next: string[];
   previous: string[];
   params?: {
     [key: string]: any;
   };
   exec?: FunctionNode;
-  type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN";
+  type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN" | "GUARD";
   status: "pending" | "completed";
 }
 
 export interface Workflow {
-  name: string;
   id: string;
+  name: string;
   description: string;
   global: {
     [key: string]: any;

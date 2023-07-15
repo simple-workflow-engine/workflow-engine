@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-import type { HydratedDocumentFromSchema } from "mongoose";
+import type { InferSchemaType } from "mongoose";
 
 const schema = new Schema(
   {
@@ -29,6 +29,11 @@ const schema = new Schema(
       required: false,
       default: [],
     },
+    workflowDefinitionId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      ref: "WorkflowDefinition",
+    },
   },
   {
     timestamps: true,
@@ -37,4 +42,4 @@ const schema = new Schema(
 
 export const WorkflowRuntime = model("WorkflowRuntime", schema);
 
-export type WorkflowRuntimeDocument = HydratedDocumentFromSchema<typeof schema>;
+export type WorkflowRuntimeDocument = InferSchemaType<typeof schema>;
