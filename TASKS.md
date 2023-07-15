@@ -13,9 +13,9 @@
 
 - Function Task is used to execute a any javascript function and the output is stored in the resultMap.
 
-## Condition Task
+## Guard Task
 
-- Condition Task is same as Function Task but it checks the result of the function code and conditionally calls the next tasks.
+- Guard Task is same as Function Task but it checks the result of the function code and conditionally calls the next tasks.
 
 ## Listen Task
 

@@ -9,7 +9,7 @@ export interface Task {
     [key: string]: any;
   };
   exec?: FunctionNode;
-  type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN" | "CONDITION";
+  type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN" | "GUARD";
   status: "pending" | "completed";
 }
 

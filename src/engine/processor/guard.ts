@@ -1,12 +1,12 @@
-import type { Utilities } from "../../engine/utilities/index";
-import type { Task } from "../../engine/tasks/index";
-import ism from "isolated-vm";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import logger from "@/lib/utils/logger";
+import type { Task } from "../tasks";
+import type { Utilities } from "../utilities";
+import ism from "isolated-vm";
 
-export class FunctionProcessor {
+export class GuardProcessor {
   private logChild = logger.child({
-    name: FunctionProcessor.name,
+    name: GuardProcessor.name,
   });
 
   constructor() {}
@@ -27,7 +27,7 @@ export class FunctionProcessor {
   ): Promise<
     | [
         {
-          response: Record<string, any>;
+          response: boolean;
         },
         null
       ]
@@ -70,7 +70,7 @@ export class FunctionProcessor {
         null,
         {
           message: "Exec not found",
-          error: `No function script found`,
+          error: `No guard script found`,
           stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
         },
       ];
@@ -100,38 +100,16 @@ export class FunctionProcessor {
     if (!evalResult) {
       return [
         {
-          response: {},
+          response: false,
         },
         null,
       ];
-    }
-
-    try {
-      const resultData = JSON.parse(evalResult);
+    } else {
       return [
         {
-          response: resultData,
+          response: true,
         },
         null,
-      ];
-    } catch (error) {
-      if (error instanceof Error) {
-        return [
-          null,
-          {
-            message: error.message,
-            stackTrace: error?.stack,
-            error: error.name,
-          },
-        ];
-      }
-      return [
-        null,
-        {
-          message: "Task result parse failed",
-          stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
-          error: "JSON.stringify failed",
-        },
       ];
     }
   }
