@@ -6,7 +6,7 @@ export interface Task {
   next: string[];
   previous: string[];
   params?: {
-    [key: string]: any;
+    [key: string]: any | any[];
   };
   exec?: FunctionNode;
   type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN" | "GUARD";

@@ -10,6 +10,7 @@ import { EnvironmentVariables } from "../../env/index";
 import logger from "@/lib/utils/logger";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { GuardProcessor } from "./guard";
+import { WaitProcessor } from "./wait";
 
 const envVarsObj = EnvironmentVariables.getInstance();
 
@@ -91,9 +92,9 @@ export class Processor {
       return this.processStartTask(workflowRuntimeData, currentTask);
     } else if (currentTask.type === "END") {
       return this.processEndTask(workflowRuntimeData, currentTask);
-    }
-    // else if (currentTask.type === "WAIT") {}
-    else if (currentTask.type === "GUARD") {
+    } else if (currentTask.type === "WAIT") {
+      return this.processWaitTask(workflowRuntimeData, currentTask);
+    } else if (currentTask.type === "GUARD") {
       return this.processGuardTask(workflowRuntimeData, currentTask);
     } else {
       this.logChild.error(
@@ -553,6 +554,149 @@ export class Processor {
       this.logChild.error(
         `Can not update WorkflowRuntime for runtime: ${this.workflowRuntimeId} and taskName: ${this.taskName}`
       );
+    }
+
+    return [
+      {
+        message: "Task processed successfully",
+        data: {
+          updatedTasks,
+          updatedResultMap,
+          updatedWorkflowStatus,
+        },
+        statusCode: 200,
+      },
+      null,
+    ];
+  }
+
+  private async processWaitTask(
+    workflowRuntimeData: WorkflowRuntimeDocument,
+    currentTask: Task
+  ): Promise<
+    | [
+        {
+          message: string;
+          data: Record<string, any>;
+          statusCode: number;
+        },
+        null
+      ]
+    | [
+        null,
+        {
+          message: string;
+          error: string;
+          statusCode: number;
+        }
+      ]
+  > {
+    if (currentTask.status === "completed") {
+      return [
+        {
+          statusCode: 200,
+          message: "Task already processed successfully",
+          data: {},
+        },
+        null,
+      ];
+    }
+    const loggerObj = new Logger(workflowRuntimeData?.logs ?? [], this.taskName);
+    let resultMap: {
+      [key: string]: { [key: string]: any };
+    } = { ...workflowRuntimeData.workflowResults };
+    const allTasks = workflowRuntimeData.tasks;
+    const params = (currentTask.params ?? {
+      taskNames: [],
+    }) as {
+      taskNames: string[];
+    };
+
+    const waitProcessor = new WaitProcessor();
+    const [waitResponse, waitResponseError] = await waitProcessor.process(params, currentTask, allTasks);
+
+    if (waitResponseError) {
+      this.logChild.error(`Task process failed for taskName: ${this.taskName}`);
+      this.logChild.error(waitResponseError);
+      return [
+        null,
+        {
+          message: "Internal Server Error",
+          error: `Task process failed for taskName: ${this.taskName}`,
+          statusCode: 500,
+        },
+      ];
+    }
+
+    // Updated Result
+    let updatedResultMap = {
+      ...resultMap,
+      [currentTask.name]: waitResponse?.response,
+    };
+
+    // Updated Task
+    let updatedTasks: Task[] = [...workflowRuntimeData.tasks];
+    if (waitResponse?.response) {
+      const updateIndex = updatedTasks.findIndex((task) => task.id === currentTask.id);
+      updatedTasks[updateIndex] = {
+        ...updatedTasks[updateIndex],
+        status: "completed",
+      };
+    }
+
+    // Updated Logs
+    const updatedLogs = loggerObj.Logs;
+
+    // Updated Workflow Status
+    let updatedWorkflowStatus: "completed" | "pending" = "pending";
+    const endTask = updatedTasks.find((task) => task.type === "END");
+    const allCompleted = endTask?.status === "completed";
+    if (allCompleted) {
+      updatedWorkflowStatus = "completed";
+    }
+
+    // Updated Runtime
+    const [updatedRuntime, updatedRuntimeError] = await asyncHandler(
+      WorkflowRuntime.updateOne(
+        {
+          _id: this.workflowRuntimeId,
+        },
+        {
+          workflowResults: updatedResultMap,
+          workflowStatus: updatedWorkflowStatus,
+          tasks: updatedTasks,
+          logs: updatedLogs,
+        }
+      )
+    );
+    if (updatedRuntimeError) {
+      this.logChild.error(
+        `WorkflowRuntime updateOne failed for runtime: ${this.workflowRuntimeId} and taskName: ${this.taskName}`
+      );
+      this.logChild.error(updatedRuntimeError);
+    }
+
+    if (!updatedRuntime) {
+      this.logChild.error(
+        `Can not update WorkflowRuntime for runtime: ${this.workflowRuntimeId} and taskName: ${this.taskName}`
+      );
+    }
+
+    if (waitResponse?.response) {
+      const nextTasks = updatedTasks.filter((item) => currentTask.next.includes(item.name));
+      nextTasks.forEach((task) => {
+        if (task.type !== "LISTEN") {
+          axios({
+            method: "POST",
+            baseURL: EnvVars.DEPLOYED_URL,
+            url: "/workflow/process",
+            data: {
+              workflowRuntimeId: this.workflowRuntimeId,
+              taskName: task.name,
+            },
+          });
+        }
+      });
     }
 
     return [
