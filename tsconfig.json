@@ -17,11 +17,6 @@
       "@engine/*": ["./src/engine/*"],
       "@lib/*": ["./src/lib/*"],
       "@api/*": ["./src/api/*"]
-    },
-    "plugins": [
-      {
-        "transform": "typia/lib/transform"
-      }
-    ]
+    }
   }
 }
