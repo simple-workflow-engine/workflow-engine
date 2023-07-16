@@ -14,7 +14,8 @@
     "format": "prettier -c src/*",
     "lint": "eslint src/**/*.ts",
     "format:fix": "prettier --write src/*",
-    "lint:fix": "eslint src/**/*.ts --fix"
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "render:build": "yarn && yarn build"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
