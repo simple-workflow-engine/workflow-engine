@@ -4,7 +4,6 @@ import { config } from "dotenv";
 config();
 
 const envSchema = z.object({
-  HOST: z.string(),
   PORT: z.string(),
   MONGO_USER: z.string(),
   MONGO_PASS: z.string(),

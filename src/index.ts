@@ -16,7 +16,6 @@ config();
 let app: Express;
 
 const PORT = Number(EnvVars.PORT || 8001);
-const HOST = EnvVars.HOST || "127.0.0.1";
 
 async function bootstrap() {
   app = express();
@@ -54,8 +53,8 @@ async function bootstrap() {
   )
     .then(() => {
       logger.info("MongoDB connected successfully");
-      app.listen(PORT, HOST, () => {
-        logger.info(`Server Started on http://${HOST}:${PORT}`);
+      app.listen(PORT, () => {
+        logger.info(`Server Started on ${PORT}`);
       });
     })
     .catch((error) => {
