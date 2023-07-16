@@ -11,7 +11,6 @@ const envSchema = z.object({
   MONGO_CLUSTER: z.string(),
   MONGO_DB: z.string(),
   DEPLOYED_URL: z.string(),
-  UTILITY_URL: z.string(),
 });
 
 export type EnvVars = z.infer<typeof envSchema>;

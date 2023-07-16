@@ -29,6 +29,16 @@ async function bootstrap() {
 
   app.use("/workflow", WorkflowRouter);
 
+  app.get("/health", (req, res) =>
+    res.status(200).json({
+      message: "Workfllow Engine Health up",
+      status: {
+        up: true,
+        serverTime: new Date().toJSON(),
+      },
+    })
+  );
+
   connect(
     [
       "mongodb+srv://",
