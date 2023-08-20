@@ -18,8 +18,6 @@ export const BodyValidator = (schema: ZodSchema) => (req: Request, res: Response
   } catch (error) {
     logger.error(`Body Validator failed`);
     logger.error(error);
-    logger.info("Body");
-    logger.info(body);
 
     return res.status(400).json({
       message: "Bad Request",

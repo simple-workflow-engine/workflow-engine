@@ -7,6 +7,7 @@ import type { Express } from "express";
 import express from "express";
 import { connect } from "mongoose";
 import logger, { morganMiddleware } from "./lib/utils/logger";
+import DefinitionRouter from "./api/definition/definition.router";
 
 const envVarsObj = EnvironmentVariables.getInstance();
 const EnvVars = envVarsObj.EnvVars;
@@ -27,6 +28,7 @@ async function bootstrap() {
   app.use(morganMiddleware);
 
   app.use("/workflow", WorkflowRouter);
+  app.use("/definition", DefinitionRouter);
 
   app.get("/health", (req, res) =>
     res.status(200).json({

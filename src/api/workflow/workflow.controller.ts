@@ -1,24 +1,18 @@
 import type { Request, Response } from "express";
-import { WorkflowService } from "./workflow.service";
-import type { ProcessWorkflowBody, StartWorkflowBody } from "./workflow.dto";
 
-const workflowService = new WorkflowService();
+import type { ProcessWorkflowBody, StartWorkflowBody } from "./workflow.dto";
+import { type WorkflowService } from "./workflow.service";
 
 export class WorkflowController {
-  private static instance: WorkflowController;
+  private workflowService: WorkflowService;
 
-  static getInstance(): WorkflowController {
-    if (!WorkflowController.instance) {
-      WorkflowController.instance = new WorkflowController();
-    }
-    return WorkflowController.instance;
+  constructor(workflowService: WorkflowService) {
+    this.workflowService = workflowService;
   }
-
-  private constructor() {}
 
   async startWorkflow(req: Request, res: Response) {
     const body: StartWorkflowBody = req.body;
-    const [data, error] = await workflowService.startWorkflow(body.workflowDefinitionId, body.globalParams);
+    const [data, error] = await this.workflowService.startWorkflow(body.workflowDefinitionId, body.globalParams);
     if (error) {
       return res.status(error?.statusCode).json(error);
     }
@@ -27,7 +21,7 @@ export class WorkflowController {
 
   async processWorkflow(req: Request, res: Response) {
     const body: ProcessWorkflowBody = req.body;
-    const [data, error] = await workflowService.processWorkflow(body.workflowRuntimeId, body.taskName);
+    const [data, error] = await this.workflowService.processWorkflow(body.workflowRuntimeId, body.taskName);
     if (error) {
       return res.status(error?.statusCode).json(error);
     }
