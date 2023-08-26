@@ -4,12 +4,14 @@ import { config } from "dotenv";
 config();
 
 const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "production"]).optional(),
   PORT: z.string(),
   MONGO_USER: z.string(),
   MONGO_PASS: z.string(),
   MONGO_CLUSTER: z.string(),
   MONGO_DB: z.string(),
   DEPLOYED_URL: z.string(),
+  MONGO_DEV_URI: z.string().optional(),
 });
 
 export type EnvVars = z.infer<typeof envSchema>;

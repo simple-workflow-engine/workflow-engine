@@ -27,6 +27,10 @@ const schema = new Schema(
       enum: ["active", "inactive"],
       default: "active",
     },
+    uiObject: {
+      type: Object,
+      required: false,
+    },
   },
   {
     timestamps: true,

@@ -41,17 +41,19 @@ async function bootstrap() {
   );
 
   connect(
-    [
-      "mongodb+srv://",
-      encodeURIComponent(EnvVars.MONGO_USER),
-      ":",
-      encodeURIComponent(EnvVars.MONGO_PASS),
-      "@",
-      EnvVars.MONGO_CLUSTER,
-      "/",
-      EnvVars.MONGO_DB,
-      "?retryWrites=true&w=majority",
-    ].join("")
+    EnvVars?.NODE_ENV === "development"
+      ? [EnvVars?.MONGO_DEV_URI, "/", EnvVars.MONGO_DB, "?retryWrites=true&w=majority"].join("")
+      : [
+          "mongodb+srv://",
+          encodeURIComponent(EnvVars.MONGO_USER),
+          ":",
+          encodeURIComponent(EnvVars.MONGO_PASS),
+          "@",
+          EnvVars.MONGO_CLUSTER,
+          "/",
+          EnvVars.MONGO_DB,
+          "?retryWrites=true&w=majority",
+        ].join("")
   )
     .then(() => {
       logger.info("MongoDB connected successfully");
