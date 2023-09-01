@@ -12,6 +12,8 @@ const envSchema = z.object({
   MONGO_DB: z.string(),
   DEPLOYED_URL: z.string(),
   MONGO_DEV_URI: z.string().optional(),
+  AUTH0_IDENTIFIER: z.string(),
+  AUTH0_ISSUER: z.string(),
 });
 
 export type EnvVars = z.infer<typeof envSchema>;
