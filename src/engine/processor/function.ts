@@ -49,7 +49,7 @@ export class FunctionProcessor {
     const context = await ismObj.createContext();
 
     const jail = context.global;
-    const [_, jailSetResultError] = await asyncHandler(
+    const jailSetResult = await asyncHandler(
       Promise.all([
         jail.set("global", jail.derefInto()),
         jail.set("getWorkflowParams", getWorkflowParams),
@@ -60,9 +60,9 @@ export class FunctionProcessor {
     );
     await Promise.all(Object.entries(utilities).map(async ([key, value]) => jail.set(key, value)));
 
-    if (jailSetResultError) {
+    if (!jailSetResult.success) {
       this.logChild.error(`isolate-vm failed to set global`);
-      this.logChild.error(jailSetResultError);
+      this.logChild.error(jailSetResult.error);
     }
 
     if (!task?.exec) {
@@ -75,16 +75,16 @@ export class FunctionProcessor {
         },
       ];
     }
-    const [evalResult, evalResultError] = await asyncHandler(context.eval(task.exec));
+    const evalResult = await asyncHandler(context.eval(task.exec));
 
-    if (evalResultError) {
-      if (evalResultError instanceof Error) {
+    if (!evalResult.success) {
+      if (evalResult.error instanceof Error) {
         return [
           null,
           {
-            message: evalResultError?.message,
-            stackTrace: evalResultError?.stack,
-            error: evalResultError?.name,
+            message: evalResult.error?.message,
+            stackTrace: evalResult.error?.stack,
+            error: evalResult.error?.name,
           },
         ];
       }
@@ -92,7 +92,7 @@ export class FunctionProcessor {
         null,
         {
           message: "Task script have runtime error",
-          stackTrace: JSON.stringify(evalResultError),
+          stackTrace: JSON.stringify(evalResult.error),
         },
       ];
     }
@@ -107,7 +107,7 @@ export class FunctionProcessor {
     }
 
     try {
-      const resultData = JSON.parse(evalResult);
+      const resultData = JSON.parse(evalResult.result);
       return [
         {
           response: resultData,

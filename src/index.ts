@@ -30,13 +30,19 @@ async function bootstrap() {
   app.use("/workflow", WorkflowRouter);
   app.use("/definition", DefinitionRouter);
 
-  app.get("/health", (req, res) =>
+  app.get("/health", (_, res) =>
     res.status(200).json({
       message: "Workfllow Engine Health up",
       status: {
         up: true,
         serverTime: new Date().toJSON(),
       },
+    })
+  );
+
+  app.use((_, res) =>
+    res.status(404).json({
+      message: "Not found",
     })
   );
 

@@ -1,8 +1,10 @@
-export async function asyncHandler<T = unknown>(promise: Promise<T>): Promise<[T, null] | [null, any]> {
+export async function asyncHandler<T = unknown>(
+  promise: Promise<T>
+): Promise<{ success: true; result: T } | { success: false; error: Error | any }> {
   try {
     const result = await promise;
-    return [result, null];
+    return { success: true, result };
   } catch (error) {
-    return [null, error];
+    return { success: false, error };
   }
 }

@@ -31,13 +31,11 @@ export class WorkflowService {
         }
       ]
   > {
-    const [workflowDefinitionData, workflowDefinitionDataError] = await asyncHandler(
-      WorkflowDefinition.findById(workflowDefinitionId)
-    );
+    const workflowDefinitionDataResult = await asyncHandler(WorkflowDefinition.findById(workflowDefinitionId));
 
-    if (workflowDefinitionDataError) {
+    if (!workflowDefinitionDataResult.success) {
       this.logChild.error(`WorkflowDefinition findById failed for ${workflowDefinitionId}`);
-      this.logChild.error(workflowDefinitionDataError);
+      this.logChild.error(workflowDefinitionDataResult.error);
 
       return [
         null,
@@ -49,7 +47,7 @@ export class WorkflowService {
       ];
     }
 
-    if (!workflowDefinitionData) {
+    if (!workflowDefinitionDataResult.result) {
       return [
         null,
         {
@@ -60,23 +58,23 @@ export class WorkflowService {
       ];
     }
 
-    const [workflowRuntimeData, workflowRuntimeDataError] = await asyncHandler(
+    const workflowRuntimeDataResult = await asyncHandler(
       WorkflowRuntime.create({
-        workflowDefinitionId: workflowDefinitionData?._id,
+        workflowDefinitionId: workflowDefinitionDataResult.result?._id,
         workflowStatus: "pending",
         workflowResults: {},
-        tasks: workflowDefinitionData?.tasks,
+        tasks: workflowDefinitionDataResult.result?.tasks,
         global: {
-          ...(workflowDefinitionData?.global && { ...workflowDefinitionData?.global }),
+          ...(workflowDefinitionDataResult.result?.global && { ...workflowDefinitionDataResult.result?.global }),
           ...(globalParams && { ...globalParams }),
         },
         logs: [],
       })
     );
 
-    if (workflowRuntimeDataError) {
+    if (!workflowRuntimeDataResult.success) {
       this.logChild.error(`WorkflowRuntime create failed for ${workflowDefinitionId}`);
-      this.logChild.error(workflowRuntimeDataError);
+      this.logChild.error(workflowRuntimeDataResult.error);
       return [
         null,
         {
@@ -87,7 +85,7 @@ export class WorkflowService {
       ];
     }
 
-    if (!workflowRuntimeData) {
+    if (!workflowRuntimeDataResult.result) {
       return [
         null,
         {
@@ -98,7 +96,7 @@ export class WorkflowService {
       ];
     }
 
-    const processor = new Processor(workflowRuntimeData._id.toString(), "START");
+    const processor = new Processor(workflowRuntimeDataResult.result._id.toString(), "START");
 
     return processor.processTask();
   }

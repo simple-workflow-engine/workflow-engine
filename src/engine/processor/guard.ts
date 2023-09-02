@@ -49,7 +49,7 @@ export class GuardProcessor {
     const context = await ismObj.createContext();
 
     const jail = context.global;
-    const [_, jailSetResultError] = await asyncHandler(
+    const jailSetResult = await asyncHandler(
       Promise.all([
         jail.set("global", jail.derefInto()),
         jail.set("getWorkflowParams", getWorkflowParams),
@@ -60,9 +60,9 @@ export class GuardProcessor {
     );
     await Promise.all(Object.entries(utilities).map(async ([key, value]) => jail.set(key, value)));
 
-    if (jailSetResultError) {
+    if (!jailSetResult.success) {
       this.logChild.error(`isolate-vm failed to set global`);
-      this.logChild.error(jailSetResultError);
+      this.logChild.error(jailSetResult.error);
     }
 
     if (!task?.exec) {
@@ -75,16 +75,16 @@ export class GuardProcessor {
         },
       ];
     }
-    const [evalResult, evalResultError] = await asyncHandler(context.eval(task.exec));
+    const evalResult = await asyncHandler(context.eval(task.exec));
 
-    if (evalResultError) {
-      if (evalResultError instanceof Error) {
+    if (!evalResult.success) {
+      if (evalResult.error instanceof Error) {
         return [
           null,
           {
-            message: evalResultError?.message,
-            stackTrace: evalResultError?.stack,
-            error: evalResultError?.name,
+            message: evalResult.error?.message,
+            stackTrace: evalResult.error?.stack,
+            error: evalResult.error?.name,
           },
         ];
       }
@@ -92,12 +92,12 @@ export class GuardProcessor {
         null,
         {
           message: "Task script have runtime error",
-          stackTrace: JSON.stringify(evalResultError),
+          stackTrace: JSON.stringify(evalResult.error),
         },
       ];
     }
 
-    if (!evalResult) {
+    if (!evalResult.result) {
       return [
         {
           response: false,
