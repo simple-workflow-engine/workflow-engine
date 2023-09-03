@@ -28,4 +28,14 @@ export class DefinitionController {
 
     return res.status(data?.statusCode).json(data);
   }
+
+  public async getWorkflowDetail(req: Request<{ id: string }>, res: Response) {
+    const [data, error] = await this.definitionService.getWorkflowDetail(req.params.id);
+
+    if (error) {
+      return res.status(error?.statusCode).json(error);
+    }
+
+    return res.status(data?.statusCode).json(data);
+  }
 }
