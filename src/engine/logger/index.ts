@@ -18,6 +18,11 @@ export class Logger {
     this.loggerObj.info(message);
     this.logs.push([new Date().toJSON(), this.taskName, JSON.stringify(message)].join(" : "));
   }
+
+  addLogs(logs: string[]) {
+    this.logs.push(...logs);
+  }
+
   get Logs() {
     return this.logs;
   }

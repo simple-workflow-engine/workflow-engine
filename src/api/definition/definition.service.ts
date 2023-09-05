@@ -164,7 +164,12 @@ export class DefinitionService {
           status: "active" | "inactive";
           createdAt: string;
           updatedAt: string;
-          runtimes: any[];
+          runtimes: Array<{
+            _id: ObjectId;
+            workflowStatus: "pending" | "completed";
+            createdAt: string;
+            updatedAt: string;
+          }>;
         }>([
           {
             $match: {
@@ -177,6 +182,13 @@ export class DefinitionService {
               localField: "_id",
               foreignField: "workflowDefinitionId",
               as: "runtimes",
+              pipeline: [
+                {
+                  $sort: {
+                    createdAt: -1,
+                  },
+                },
+              ],
             },
           },
           {
@@ -187,7 +199,10 @@ export class DefinitionService {
               status: 1,
               createdAt: 1,
               updatedAt: 1,
-              runtimes: 1,
+              "runtimes._id": 1,
+              "runtimes.workflowStatus": 1,
+              "runtimes.createdAt": 1,
+              "runtimes.updatedAt": 1,
             },
           },
         ]))()
@@ -205,12 +220,8 @@ export class DefinitionService {
         },
       ];
     }
-
-    if (
-      !workflowDefinitionDetailResult?.result ||
-      workflowDefinitionDetailResult?.result?.length < 1 ||
-      !workflowDefinitionDetailResult?.result?.at(0)
-    ) {
+    const workflowDefinition = workflowDefinitionDetailResult?.result?.at(0);
+    if (!workflowDefinition) {
       return [
         null,
         {
@@ -223,8 +234,7 @@ export class DefinitionService {
 
     return [
       {
-        // @ts-ignore-next-line
-        data: workflowDefinitionDetailResult.result?.at(0),
+        data: workflowDefinition,
         message: "Workflow detail fetched successfullt",
         statusCode: 200,
       },

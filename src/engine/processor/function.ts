@@ -3,6 +3,7 @@ import type { Task } from "../../engine/tasks/index";
 import ism from "isolated-vm";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import logger from "@/lib/utils/logger";
+import type { Logger } from "../logger";
 
 export class FunctionProcessor {
   private logChild = logger.child({
@@ -18,7 +19,7 @@ export class FunctionProcessor {
     global: {
       [key: string]: any;
     },
-    logger: Function,
+    loggerObj: Logger,
     utilities: Utilities,
     results: {
       [key: string]: { [key: string]: any };
@@ -43,6 +44,11 @@ export class FunctionProcessor {
     const getWorkflowParams = () => params;
     const getWorkflowGlobal = () => global;
     const getWorkflowResults = () => results;
+    const logs: string[] = [];
+    const addLog = (...message: any[]) => {
+      this.logChild.info(message);
+      logs.push([new Date().toJSON(), task.name, JSON.stringify(message)].join(" : "));
+    };
 
     const ismObj = new ism.Isolate();
 
@@ -55,10 +61,10 @@ export class FunctionProcessor {
         jail.set("getWorkflowParams", getWorkflowParams),
         jail.set("getWorkflowGlobal", getWorkflowGlobal),
         jail.set("getWorkflowResults", getWorkflowResults),
-        jail.set("logger", logger),
+        jail.set("logger", addLog),
       ])
     );
-    await Promise.all(Object.entries(utilities).map(async ([key, value]) => jail.set(key, value)));
+    await Promise.all(Object.entries(utilities).map(async ([key, value]) => jail.set(key, value))).catch();
 
     if (!jailSetResult.success) {
       this.logChild.error(`isolate-vm failed to set global`);
@@ -75,9 +81,24 @@ export class FunctionProcessor {
         },
       ];
     }
-    const evalResult = await asyncHandler(context.eval(task.exec));
+    const evalResult = await asyncHandler<string>(
+      await context.eval(
+        `
+    ${task.exec}
+    handler();
+    `,
+        {
+          promise: true,
+        }
+      )
+    );
+    ismObj.dispose();
+
+    loggerObj.addLogs(logs);
 
     if (!evalResult.success) {
+      this.logChild.error(`Context Eval failed for ${task.name}`);
+      this.logChild.error(evalResult.error);
       if (evalResult.error instanceof Error) {
         return [
           null,
@@ -115,6 +136,9 @@ export class FunctionProcessor {
         null,
       ];
     } catch (error) {
+      this.logChild.info(evalResult.result);
+      this.logChild.error(`Result JSON parse failed for ${task.name}`);
+      this.logChild.error(error);
       if (error instanceof Error) {
         return [
           null,

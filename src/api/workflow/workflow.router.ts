@@ -13,7 +13,7 @@ const WorkflowRouter = Router();
 WorkflowRouter.post("/start", authRequired, BodyValidator(StartWorkflowBody), (req, res) =>
   workflowController.startWorkflow(req, res)
 );
-WorkflowRouter.post("/process", authRequired, BodyValidator(ProcessWorkflowBody), (req, res) =>
+WorkflowRouter.post("/process", BodyValidator(ProcessWorkflowBody), (req, res) =>
   workflowController.processWorkflow(req, res)
 );
 

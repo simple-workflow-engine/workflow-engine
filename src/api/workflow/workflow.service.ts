@@ -63,7 +63,7 @@ export class WorkflowService {
         workflowDefinitionId: workflowDefinitionDataResult.result?._id,
         workflowStatus: "pending",
         workflowResults: {},
-        tasks: workflowDefinitionDataResult.result?.tasks,
+        tasks: workflowDefinitionDataResult.result?.tasks?.map((t) => ({ ...t, status: "pending" })),
         global: {
           ...(workflowDefinitionDataResult.result?.global && { ...workflowDefinitionDataResult.result?.global }),
           ...(globalParams && { ...globalParams }),
@@ -95,14 +95,79 @@ export class WorkflowService {
         },
       ];
     }
+    const startTaskName = workflowRuntimeDataResult.result.tasks.find((val) => val.type === "START")?.name;
 
-    const processor = new Processor(workflowRuntimeDataResult.result._id.toString(), "START");
+    if (!startTaskName) {
+      return [
+        null,
+        {
+          message: "Bad Request",
+          statusCode: 400,
+          error: `Can not find START task of WorkflowRuntime ${workflowDefinitionId}`,
+        },
+      ];
+    }
 
-    return processor.processTask();
+    const processor = new Processor(workflowRuntimeDataResult.result._id.toString(), startTaskName);
+
+    const processTaskResult = await asyncHandler(processor.processTask());
+
+    if (!processTaskResult.success) {
+      this.logChild.error(
+        `Process Task failed for Workflow Runtime: ${workflowRuntimeDataResult.result._id.toString()} and Task Name: ${startTaskName}`
+      );
+      this.logChild.error(processTaskResult.error);
+      return [
+        null,
+        {
+          message: "Internal Server Error",
+          error: `Process Task failed for Workflow Runtime: ${workflowRuntimeDataResult.result._id.toString()} and Task Name: ${startTaskName}`,
+          statusCode: 500,
+        },
+      ];
+    }
+
+    return processTaskResult.result;
   }
 
-  async processWorkflow(workflowRuntimeId: string, taskName: string) {
+  async processWorkflow(
+    workflowRuntimeId: string,
+    taskName: string
+  ): Promise<
+    | [
+        {
+          message: string;
+          data: Record<string, any>;
+          statusCode: number;
+        },
+        null
+      ]
+    | [
+        null,
+        {
+          message: string;
+          error: string;
+          statusCode: number;
+        }
+      ]
+  > {
     const processor = new Processor(workflowRuntimeId, taskName);
-    return processor.processTask();
+
+    const processTaskResult = await asyncHandler(processor.processTask());
+
+    if (!processTaskResult.success) {
+      this.logChild.error(`Process Task failed for Workflow Runtime: ${workflowRuntimeId} and Task Name: ${taskName}`);
+      this.logChild.error(processTaskResult.error);
+      return [
+        null,
+        {
+          message: "Internal Server Error",
+          error: `Process Task failed for Workflow Runtime: ${workflowRuntimeId} and Task Name: ${taskName}`,
+          statusCode: 500,
+        },
+      ];
+    }
+
+    return processTaskResult.result;
   }
 }

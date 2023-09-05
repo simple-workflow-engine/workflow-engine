@@ -8,7 +8,16 @@ export const StartWorkflowBody = z.object({
     .min(1, {
       message: "Workflow Definition Id is required",
     }),
-  globalParams: z.any().optional(),
+  globalParams: z
+    .record(
+      z
+        .string({
+          required_error: "Key is required",
+        })
+        .min(1, "Key is required"),
+      z.any()
+    )
+    .optional(),
 });
 export type StartWorkflowBody = z.infer<typeof StartWorkflowBody>;
 

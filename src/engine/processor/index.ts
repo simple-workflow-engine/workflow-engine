@@ -4,7 +4,7 @@ import { Logger } from "../logger/index";
 import type { Task } from "../tasks/index";
 import { Utilities } from "../utilities/index";
 import { FunctionProcessor } from "./function";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 import { EnvironmentVariables } from "../../env/index";
 import logger from "@/lib/utils/logger";
@@ -148,7 +148,7 @@ export class Processor {
     const [functionResponse, functionResponseError] = await functionProcessor.process(
       params,
       global,
-      loggerObj.log,
+      loggerObj,
       utilities,
       resultMap,
       currentTask
@@ -238,6 +238,12 @@ export class Processor {
             workflowRuntimeId: this.workflowRuntimeId,
             taskName: task.name,
           },
+        }).catch((error) => {
+          if (error instanceof AxiosError) {
+            this.logChild.error(error?.response?.data);
+          } else {
+            this.logChild.error(error);
+          }
         });
       }
     });
@@ -385,6 +391,12 @@ export class Processor {
               workflowRuntimeId: this.workflowRuntimeId,
               taskName: task.name,
             },
+          }).catch((error) => {
+            if (error instanceof AxiosError) {
+              this.logChild.error(error?.response?.data);
+            } else {
+              this.logChild.error(error);
+            }
           });
         }
       });
@@ -497,6 +509,12 @@ export class Processor {
             workflowRuntimeId: this.workflowRuntimeId,
             taskName: task.name,
           },
+        }).catch((error) => {
+          if (error instanceof AxiosError) {
+            this.logChild.error(error?.response?.data);
+          } else {
+            this.logChild.error(error);
+          }
         });
       }
     });
