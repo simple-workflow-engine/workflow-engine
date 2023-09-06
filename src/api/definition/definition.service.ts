@@ -2,7 +2,7 @@ import { asyncHandler } from "@/lib/utils/asyncHandler";
 import logger from "@/lib/utils/logger";
 import type { WorkflowDefinitionDocument } from "@/models";
 import { WorkflowDefinition } from "@/models";
-import type { AddWorkflowBody } from "./definition.dto";
+import type { AddWorkflowBody, EditWorkflowBody } from "./definition.dto";
 import type { ObjectId } from "mongoose";
 import { Types } from "mongoose";
 
@@ -129,6 +129,72 @@ export class DefinitionService {
     ];
   }
 
+  public async editWorkflow(
+    id: string,
+    definitionData: EditWorkflowBody
+  ): Promise<
+    | [
+        {
+          message: string;
+          data: {
+            success: boolean;
+          };
+          statusCode: number;
+        },
+        null
+      ]
+    | [
+        null,
+        {
+          message: string;
+          error: string;
+          statusCode: number;
+        }
+      ]
+  > {
+    const updatedWorkflowDefinitionResult = await asyncHandler(
+      WorkflowDefinition.updateOne(
+        {
+          _id: id,
+        },
+        {
+          name: definitionData.workflowData.name,
+          description: definitionData.workflowData.description,
+          global: definitionData.workflowData.global,
+          status: definitionData.workflowData.status,
+          tasks: definitionData.workflowData.tasks,
+          ...(definitionData?.ui && {
+            uiObject: {
+              [definitionData.key]: definitionData.ui,
+            },
+          }),
+        }
+      )
+    );
+
+    if (!updatedWorkflowDefinitionResult.success) {
+      this.logChild.error(`Workflow Definition updateOne failed for ${id}`);
+      this.logChild.error(updatedWorkflowDefinitionResult.error);
+      return [
+        null,
+        {
+          message: "Internal Server Error",
+          error: `Workflow Definition updateOne failed for ${id}`,
+          statusCode: 500,
+        },
+      ];
+    }
+
+    return [
+      {
+        message: "Workflow Definition updated successfully",
+        statusCode: 200,
+        data: { success: !!updatedWorkflowDefinitionResult.result },
+      },
+      null,
+    ];
+  }
+
   public async getWorkflowDetail(id: string): Promise<
     | [
         {
@@ -156,56 +222,55 @@ export class DefinitionService {
       ]
   > {
     const workflowDefinitionDetailResult = await asyncHandler(
-      (async () =>
-        await WorkflowDefinition.aggregate<{
+      WorkflowDefinition.aggregate<{
+        _id: ObjectId;
+        name: string;
+        description: string;
+        status: "active" | "inactive";
+        createdAt: string;
+        updatedAt: string;
+        runtimes: Array<{
           _id: ObjectId;
-          name: string;
-          description: string;
-          status: "active" | "inactive";
+          workflowStatus: "pending" | "completed";
           createdAt: string;
           updatedAt: string;
-          runtimes: Array<{
-            _id: ObjectId;
-            workflowStatus: "pending" | "completed";
-            createdAt: string;
-            updatedAt: string;
-          }>;
-        }>([
-          {
-            $match: {
-              _id: new Types.ObjectId(id),
-            },
+        }>;
+      }>([
+        {
+          $match: {
+            _id: new Types.ObjectId(id),
           },
-          {
-            $lookup: {
-              from: "workflowruntimes",
-              localField: "_id",
-              foreignField: "workflowDefinitionId",
-              as: "runtimes",
-              pipeline: [
-                {
-                  $sort: {
-                    createdAt: -1,
-                  },
+        },
+        {
+          $lookup: {
+            from: "workflowruntimes",
+            localField: "_id",
+            foreignField: "workflowDefinitionId",
+            as: "runtimes",
+            pipeline: [
+              {
+                $sort: {
+                  createdAt: -1,
                 },
-              ],
-            },
+              },
+            ],
           },
-          {
-            $project: {
-              _id: 1,
-              name: 1,
-              description: 1,
-              status: 1,
-              createdAt: 1,
-              updatedAt: 1,
-              "runtimes._id": 1,
-              "runtimes.workflowStatus": 1,
-              "runtimes.createdAt": 1,
-              "runtimes.updatedAt": 1,
-            },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            description: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            "runtimes._id": 1,
+            "runtimes.workflowStatus": 1,
+            "runtimes.createdAt": 1,
+            "runtimes.updatedAt": 1,
           },
-        ]))()
+        },
+      ]).then((res) => res)
     );
 
     if (!workflowDefinitionDetailResult.success) {
@@ -236,6 +301,60 @@ export class DefinitionService {
       {
         data: workflowDefinition,
         message: "Workflow detail fetched successfullt",
+        statusCode: 200,
+      },
+      null,
+    ];
+  }
+
+  public async getSingleWorkflow(id: string): Promise<
+    | [
+        {
+          message: string;
+          data: WorkflowDefinitionDocument;
+          statusCode: number;
+        },
+        null
+      ]
+    | [
+        null,
+        {
+          message: string;
+          error: string;
+          statusCode: number;
+        }
+      ]
+  > {
+    const workflowDetailResult = await asyncHandler(WorkflowDefinition.findById<WorkflowDefinitionDocument>(id));
+
+    if (!workflowDetailResult.success) {
+      this.logChild.error(`WorkflowDefinition findById failed for ${id}`);
+      this.logChild.error(workflowDetailResult.error);
+      return [
+        null,
+        {
+          error: `WorkflowDefinition findById failed for ${id}`,
+          message: "Internal Server Error",
+          statusCode: 500,
+        },
+      ];
+    }
+
+    if (!workflowDetailResult.result) {
+      return [
+        null,
+        {
+          error: `Can not found WorkflowDefinition for ${id}`,
+          message: "Not found",
+          statusCode: 404,
+        },
+      ];
+    }
+
+    return [
+      {
+        message: "Workflow Definition fetched successfully",
+        data: workflowDetailResult.result,
         statusCode: 200,
       },
       null,

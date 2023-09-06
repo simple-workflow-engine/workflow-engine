@@ -20,6 +20,7 @@ export class RuntimeService {
             _id: ObjectId;
             createdAt: string;
             updatedAt: string;
+            workflowStatus: "pending" | "completed" | "failed";
             tasks: Task[];
             logs: Array<`${string} : ${string} : ${string}`>;
             splittedLogs: Array<{
@@ -47,53 +48,53 @@ export class RuntimeService {
       ]
   > {
     const runtimeDetailResult = await asyncHandler(
-      (async () =>
-        await WorkflowRuntime.aggregate<{
+      WorkflowRuntime.aggregate<{
+        _id: ObjectId;
+        createdAt: string;
+        workflowStatus: "pending" | "completed" | "failed";
+        updatedAt: string;
+        tasks: Task[];
+        logs: Array<`${string} : ${string} : ${string}`>;
+        definition: {
           _id: ObjectId;
-          createdAt: string;
-          updatedAt: string;
-          tasks: Task[];
-          logs: Array<`${string} : ${string} : ${string}`>;
-          definition: {
-            _id: ObjectId;
-            name: string;
-            status: "active" | "inactive";
-          };
-        }>([
-          {
-            $match: {
-              _id: new Types.ObjectId(id),
-            },
+          name: string;
+          status: "active" | "inactive";
+        };
+      }>([
+        {
+          $match: {
+            _id: new Types.ObjectId(id),
           },
-          {
-            $lookup: {
-              from: "workflowdefinitions",
-              localField: "workflowDefinitionId",
-              foreignField: "_id",
-              as: "definition",
-            },
+        },
+        {
+          $lookup: {
+            from: "workflowdefinitions",
+            localField: "workflowDefinitionId",
+            foreignField: "_id",
+            as: "definition",
           },
-          {
-            $unwind: {
-              path: "$definition",
-              preserveNullAndEmptyArrays: true,
-            },
+        },
+        {
+          $unwind: {
+            path: "$definition",
+            preserveNullAndEmptyArrays: true,
           },
-          {
-            $project: {
-              _id: 1,
-              global: 1,
-              workflowStatus: 1,
-              tasks: 1,
-              logs: 1,
-              createdAt: 1,
-              updatedAt: 1,
-              "definition._id": 1,
-              "definition.name": 1,
-              "definition.status": 1,
-            },
+        },
+        {
+          $project: {
+            _id: 1,
+            global: 1,
+            workflowStatus: 1,
+            tasks: 1,
+            logs: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            "definition._id": 1,
+            "definition.name": 1,
+            "definition.status": 1,
           },
-        ]))()
+        },
+      ]).then((res) => res)
     );
 
     if (!runtimeDetailResult.success) {

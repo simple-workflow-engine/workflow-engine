@@ -16,7 +16,7 @@ const schema = new Schema(
     workflowStatus: {
       type: String,
       required: false,
-      enum: ["pending", "completed"],
+      enum: ["pending", "completed", "failed"],
       default: "pending",
     },
     tasks: {

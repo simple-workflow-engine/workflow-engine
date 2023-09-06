@@ -1,9 +1,48 @@
-import type { Utilities } from "../../engine/utilities/index";
 import type { Task } from "../../engine/tasks/index";
-import ism from "isolated-vm";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
+import ism from "isolated-vm";
 import logger from "@/lib/utils/logger";
 import type { Logger } from "../logger";
+import axios from "axios";
+
+const httpClient = (params: {
+  url: string;
+  payload?: any;
+  headers: Record<string, any>;
+  method:
+    | "get"
+    | "GET"
+    | "delete"
+    | "DELETE"
+    | "head"
+    | "HEAD"
+    | "options"
+    | "OPTIONS"
+    | "post"
+    | "POST"
+    | "put"
+    | "PUT"
+    | "patch"
+    | "PATCH"
+    | "purge"
+    | "PURGE"
+    | "link"
+    | "LINK"
+    | "unlink"
+    | "UNLINK";
+  queryParams?: Record<string, any>;
+}) =>
+  axios({
+    method: params.method,
+    url: params.url,
+    ...(params?.payload && { data: params.payload }),
+    headers: params.headers,
+    ...(params?.queryParams && {
+      params: params.queryParams,
+    }),
+  })
+    .then((res) => ({ success: true, data: res }))
+    .catch((error) => ({ success: false, error: error }));
 
 export class FunctionProcessor {
   private logChild = logger.child({
@@ -20,7 +59,6 @@ export class FunctionProcessor {
       [key: string]: any;
     },
     loggerObj: Logger,
-    utilities: Utilities,
     results: {
       [key: string]: { [key: string]: any };
     },
@@ -44,6 +82,7 @@ export class FunctionProcessor {
     const getWorkflowParams = () => params;
     const getWorkflowGlobal = () => global;
     const getWorkflowResults = () => results;
+
     const logs: string[] = [];
     const addLog = (...message: any[]) => {
       this.logChild.info(message);
@@ -61,10 +100,12 @@ export class FunctionProcessor {
         jail.set("getWorkflowParams", getWorkflowParams),
         jail.set("getWorkflowGlobal", getWorkflowGlobal),
         jail.set("getWorkflowResults", getWorkflowResults),
+        jail.set("httpClient", httpClient, {
+          promise: true,
+        }),
         jail.set("logger", addLog),
       ])
     );
-    await Promise.all(Object.entries(utilities).map(async ([key, value]) => jail.set(key, value))).catch();
 
     if (!jailSetResult.success) {
       this.logChild.error(`isolate-vm failed to set global`);
@@ -99,6 +140,7 @@ export class FunctionProcessor {
     if (!evalResult.success) {
       this.logChild.error(`Context Eval failed for ${task.name}`);
       this.logChild.error(evalResult.error);
+
       if (evalResult.error instanceof Error) {
         return [
           null,

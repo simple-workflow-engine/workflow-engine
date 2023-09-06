@@ -1,11 +1,7 @@
 import axios from "axios";
 
 export class Utilities {
-  url: string;
-
-  constructor(url: string) {
-    this.url = url;
-  }
+  constructor() {}
 
   public async createTicket(params: { name: string; assignee: string }) {
     console.log(params.name);

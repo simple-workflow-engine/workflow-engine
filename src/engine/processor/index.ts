@@ -2,7 +2,7 @@ import type { WorkflowRuntimeDocument } from "../../models/index";
 import { WorkflowRuntime } from "../../models/index";
 import { Logger } from "../logger/index";
 import type { Task } from "../tasks/index";
-import { Utilities } from "../utilities/index";
+
 import { FunctionProcessor } from "./function";
 import axios, { AxiosError } from "axios";
 
@@ -27,6 +27,7 @@ export class Processor {
     this.workflowRuntimeId = workflowRuntimeId;
     this.taskName = taskName;
   }
+
   async processTask(): Promise<
     | [
         {
@@ -136,8 +137,6 @@ export class Processor {
 
     const params = currentTask.params ?? {};
 
-    const utilities = new Utilities("127.0.0.1");
-
     const global: { [key: string]: any } = workflowRuntimeData?.global ?? {};
 
     let resultMap: {
@@ -149,7 +148,6 @@ export class Processor {
       params,
       global,
       loggerObj,
-      utilities,
       resultMap,
       currentTask
     );
@@ -287,8 +285,6 @@ export class Processor {
 
     const params = currentTask.params ?? {};
 
-    const utilities = new Utilities("127.0.0.1");
-
     const global: { [key: string]: any } = workflowRuntimeData?.global ?? {};
 
     let resultMap: {
@@ -299,8 +295,8 @@ export class Processor {
     const [guardResponse, guardResponseError] = await guardProcessor.process(
       params,
       global,
-      loggerObj.log,
-      utilities,
+      loggerObj,
+
       resultMap,
       currentTask
     );
