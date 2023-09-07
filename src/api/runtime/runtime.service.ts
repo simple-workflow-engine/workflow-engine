@@ -23,6 +23,7 @@ export class RuntimeService {
             workflowStatus: "pending" | "completed" | "failed";
             tasks: Task[];
             logs: Array<`${string} : ${string} : ${string}`>;
+
             splittedLogs: Array<{
               datetime: string;
               taskName: string;
@@ -32,7 +33,11 @@ export class RuntimeService {
               _id: ObjectId;
               name: string;
               status: "active" | "inactive";
+              description?: string;
+              createdAt: string;
+              updatedAt: string;
             };
+            workflowResults: Record<string, any>;
           };
           statusCode: number;
         },
@@ -50,16 +55,21 @@ export class RuntimeService {
     const runtimeDetailResult = await asyncHandler(
       WorkflowRuntime.aggregate<{
         _id: ObjectId;
-        createdAt: string;
         workflowStatus: "pending" | "completed" | "failed";
+        createdAt: string;
         updatedAt: string;
         tasks: Task[];
+
         logs: Array<`${string} : ${string} : ${string}`>;
         definition: {
           _id: ObjectId;
           name: string;
           status: "active" | "inactive";
+          description?: string;
+          createdAt: string;
+          updatedAt: string;
         };
+        workflowResults: Record<string, any>;
       }>([
         {
           $match: {
@@ -83,7 +93,6 @@ export class RuntimeService {
         {
           $project: {
             _id: 1,
-            global: 1,
             workflowStatus: 1,
             tasks: 1,
             logs: 1,
@@ -92,6 +101,10 @@ export class RuntimeService {
             "definition._id": 1,
             "definition.name": 1,
             "definition.status": 1,
+            "definition.description": 1,
+            "definition.createdAt": 1,
+            "definition.updatedAt": 1,
+            workflowResults: 1,
           },
         },
       ]).then((res) => res)

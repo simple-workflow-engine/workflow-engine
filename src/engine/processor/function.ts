@@ -5,44 +5,11 @@ import logger from "@/lib/utils/logger";
 import type { Logger } from "../logger";
 import axios from "axios";
 
-const httpClient = (params: {
-  url: string;
-  payload?: any;
-  headers: Record<string, any>;
-  method:
-    | "get"
-    | "GET"
-    | "delete"
-    | "DELETE"
-    | "head"
-    | "HEAD"
-    | "options"
-    | "OPTIONS"
-    | "post"
-    | "POST"
-    | "put"
-    | "PUT"
-    | "patch"
-    | "PATCH"
-    | "purge"
-    | "PURGE"
-    | "link"
-    | "LINK"
-    | "unlink"
-    | "UNLINK";
-  queryParams?: Record<string, any>;
-}) =>
-  axios({
-    method: params.method,
-    url: params.url,
-    ...(params?.payload && { data: params.payload }),
-    headers: params.headers,
-    ...(params?.queryParams && {
-      params: params.queryParams,
-    }),
-  })
-    .then((res) => ({ success: true, data: res }))
-    .catch((error) => ({ success: false, error: error }));
+const httpClient = async (...args: any[]) => {
+  //@ts-ignore-next-line
+  const result: any = await axios.apply(this, args);
+  return result.data;
+};
 
 export class FunctionProcessor {
   private logChild = logger.child({
@@ -96,13 +63,22 @@ export class FunctionProcessor {
     const jail = context.global;
     const jailSetResult = await asyncHandler(
       Promise.all([
+        context.evalClosure(
+          `
+          {
+            axios = function (...args) {
+                return $0.apply(undefined, args, { arguments: { copy: true }, result: { promise: true, copy: true } });
+            };
+          }
+        `,
+          [httpClient],
+          { arguments: { reference: true } }
+        ),
         jail.set("global", jail.derefInto()),
         jail.set("getWorkflowParams", getWorkflowParams),
         jail.set("getWorkflowGlobal", getWorkflowGlobal),
         jail.set("getWorkflowResults", getWorkflowResults),
-        jail.set("httpClient", httpClient, {
-          promise: true,
-        }),
+
         jail.set("logger", addLog),
       ])
     );
