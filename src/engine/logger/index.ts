@@ -6,12 +6,11 @@ export class Logger {
   logs: string[] = [];
   taskName: string;
 
-  constructor(logs: string[], taskName: string) {
+  constructor(taskName: string) {
     this.loggerObj = logger.child({
       name: `Workflow:${taskName}`,
     });
     this.taskName = taskName;
-    this.logs = logs;
   }
 
   log(...message: any[]) {
