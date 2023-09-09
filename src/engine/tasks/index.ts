@@ -21,5 +21,5 @@ export interface Workflow {
     [key: string]: any;
   };
   tasks: Task[];
-  status: "pending" | "completed";
+  status: "pending" | "completed" | "failed";
 }

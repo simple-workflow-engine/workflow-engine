@@ -157,6 +157,20 @@ export class Processor {
     if (functionResponseError) {
       this.logChild.error(`Task process failed for taskName: ${this.taskName}`);
       this.logChild.error(functionResponseError);
+
+      // Fail Status
+      await asyncHandler(
+        WorkflowRuntime.updateOne(
+          {
+            _id: this.workflowRuntimeId,
+            "tasks.id": currentTask.id,
+          },
+          {
+            $set: { "tasks.$.status": "failed" },
+          }
+        )
+      );
+
       return [
         null,
         {
@@ -341,6 +355,20 @@ export class Processor {
     if (guardResponseError) {
       this.logChild.error(`Task process failed for taskName: ${this.taskName}`);
       this.logChild.error(guardResponseError);
+
+      // Fail Status
+      await asyncHandler(
+        WorkflowRuntime.updateOne(
+          {
+            _id: this.workflowRuntimeId,
+            "tasks.id": currentTask.id,
+          },
+          {
+            $set: { "tasks.$.status": "failed" },
+          }
+        )
+      );
+
       return [
         null,
         {
@@ -804,6 +832,20 @@ export class Processor {
     if (waitResponseError) {
       this.logChild.error(`Task process failed for taskName: ${this.taskName}`);
       this.logChild.error(waitResponseError);
+
+      // Fail Status
+      await asyncHandler(
+        WorkflowRuntime.updateOne(
+          {
+            _id: this.workflowRuntimeId,
+            "tasks.id": currentTask.id,
+          },
+          {
+            $set: { "tasks.$.status": "failed" },
+          }
+        )
+      );
+
       return [
         null,
         {

@@ -26,9 +26,7 @@ export class FunctionProcessor {
       [key: string]: any;
     },
     loggerObj: Logger,
-    results: {
-      [key: string]: { [key: string]: any };
-    },
+    results: Record<string, any>,
     task: Task
   ): Promise<
     | [
@@ -61,6 +59,7 @@ export class FunctionProcessor {
     const context = await ismObj.createContext();
 
     const jail = context.global;
+
     const jailSetResult = await asyncHandler(
       Promise.all([
         context.evalClosure(
@@ -78,7 +77,6 @@ export class FunctionProcessor {
         jail.set("getWorkflowParams", getWorkflowParams),
         jail.set("getWorkflowGlobal", getWorkflowGlobal),
         jail.set("getWorkflowResults", getWorkflowResults),
-
         jail.set("logger", addLog),
       ])
     );
