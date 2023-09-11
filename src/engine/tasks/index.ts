@@ -1,5 +1,12 @@
 import type { FunctionNode } from "../nodes/function";
 
+export const TaskStatus = {
+  pending: "pending",
+  completed: "completed",
+  started: "started",
+  failed: "failed",
+} as const;
+
 export interface Task {
   id: string;
   name: string;
@@ -10,7 +17,7 @@ export interface Task {
   };
   exec?: FunctionNode;
   type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN" | "GUARD";
-  status: "pending" | "completed";
+  status: keyof typeof TaskStatus;
 }
 
 export interface Workflow {

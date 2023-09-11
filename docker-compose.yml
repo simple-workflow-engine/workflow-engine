@@ -1,0 +1,10 @@
+version: '3'
+services:
+  workflow-engine:
+    container_name: workflow-engine
+    build: .
+    restart: always
+    ports:
+      - 8080:8080
+    env_file:
+      - .env.docker

@@ -1,5 +1,14 @@
-node_modules
-.vscode
-dist
-.env
+# IDEs
 .idea
+.vscode
+
+# Code
+node_modules
+dist
+
+# Package Managers
+yarn-*
+
+# Env Vars
+.env.docker
+.env

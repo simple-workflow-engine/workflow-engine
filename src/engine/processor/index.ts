@@ -1,7 +1,7 @@
 import type { WorkflowRuntimeDocument } from "../../models/index";
 import { WorkflowRuntime } from "../../models/index";
 import { Logger } from "../logger/index";
-import type { Task } from "../tasks/index";
+import { TaskStatus, type Task } from "../tasks/index";
 
 import { FunctionProcessor } from "./function";
 import axios, { AxiosError } from "axios";
@@ -88,6 +88,18 @@ export class Processor {
         },
       ];
     }
+    // Start Status
+    await asyncHandler(
+      WorkflowRuntime.updateOne(
+        {
+          _id: this.workflowRuntimeId,
+          "tasks.id": currentTask.id,
+        },
+        {
+          $set: { "tasks.$.status": TaskStatus.started },
+        }
+      )
+    );
 
     if (currentTask.type === "FUNCTION") {
       return this.processFunctionTask(workflowRuntimeDataResult.result, currentTask);
@@ -153,7 +165,7 @@ export class Processor {
       resultMap,
       currentTask
     );
-
+    
     if (functionResponseError) {
       this.logChild.error(`Task process failed for taskName: ${this.taskName}`);
       this.logChild.error(functionResponseError);
@@ -166,7 +178,7 @@ export class Processor {
             "tasks.id": currentTask.id,
           },
           {
-            $set: { "tasks.$.status": "failed" },
+            $set: { "tasks.$.status": TaskStatus.failed },
           }
         )
       );
@@ -192,7 +204,7 @@ export class Processor {
     const updateIndex = updatedTasks.findIndex((task) => task.id === currentTask.id);
     updatedTasks[updateIndex] = {
       ...updatedTasks[updateIndex],
-      status: "completed",
+      status: TaskStatus.completed,
     };
 
     // Updated Logs
@@ -235,7 +247,7 @@ export class Processor {
           "tasks.id": currentTask.id,
         },
         {
-          $set: { "tasks.$.status": "completed" },
+          $set: { "tasks.$.status": TaskStatus.completed },
         }
       )
     );
@@ -364,7 +376,7 @@ export class Processor {
             "tasks.id": currentTask.id,
           },
           {
-            $set: { "tasks.$.status": "failed" },
+            $set: { "tasks.$.status": TaskStatus.failed },
           }
         )
       );
@@ -390,7 +402,7 @@ export class Processor {
     const updateIndex = updatedTasks.findIndex((task) => task.id === currentTask.id);
     updatedTasks[updateIndex] = {
       ...updatedTasks[updateIndex],
-      status: "completed",
+      status: TaskStatus.completed,
     };
 
     // Updated Logs
@@ -433,7 +445,7 @@ export class Processor {
           "tasks.id": currentTask.id,
         },
         {
-          $set: { "tasks.$.status": "completed" },
+          $set: { "tasks.$.status": TaskStatus.completed },
         }
       )
     );
@@ -547,7 +559,7 @@ export class Processor {
     const updateIndex = updatedTasks.findIndex((task) => task.id === currentTask.id);
     updatedTasks[updateIndex] = {
       ...updatedTasks[updateIndex],
-      status: "completed",
+      status: TaskStatus.completed,
     };
 
     // Updated Workflow Status
@@ -582,7 +594,7 @@ export class Processor {
           "tasks.id": currentTask.id,
         },
         {
-          $set: { "tasks.$.status": "completed" },
+          $set: { "tasks.$.status": TaskStatus.completed },
         }
       )
     );
@@ -694,7 +706,7 @@ export class Processor {
     const updateIndex = updatedTasks.findIndex((task) => task.id === currentTask.id);
     updatedTasks[updateIndex] = {
       ...updatedTasks[updateIndex],
-      status: "completed",
+      status: TaskStatus.completed,
     };
 
     // Updated Workflow Status
@@ -729,7 +741,7 @@ export class Processor {
           "tasks.id": currentTask.id,
         },
         {
-          $set: { "tasks.$.status": "completed" },
+          $set: { "tasks.$.status": TaskStatus.completed },
         }
       )
     );
@@ -805,7 +817,7 @@ export class Processor {
         }
       ]
   > {
-    if (currentTask.status === "completed") {
+    if (currentTask.status === TaskStatus.completed) {
       return [
         {
           statusCode: 200,
@@ -841,7 +853,7 @@ export class Processor {
             "tasks.id": currentTask.id,
           },
           {
-            $set: { "tasks.$.status": "failed" },
+            $set: { "tasks.$.status": TaskStatus.failed },
           }
         )
       );
@@ -867,7 +879,7 @@ export class Processor {
     const updateIndex = updatedTasks.findIndex((task) => task.id === currentTask.id);
     updatedTasks[updateIndex] = {
       ...updatedTasks[updateIndex],
-      status: "completed",
+      status: TaskStatus.completed,
     };
 
     // Updated Logs
@@ -910,7 +922,7 @@ export class Processor {
           "tasks.id": currentTask.id,
         },
         {
-          $set: { "tasks.$.status": "completed" },
+          $set: { "tasks.$.status": TaskStatus.completed },
         }
       )
     );
