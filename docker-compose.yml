@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
   workflow-engine:
     container_name: workflow-engine
@@ -8,3 +8,4 @@ services:
       - 8080:8080
     env_file:
       - .env.docker
+

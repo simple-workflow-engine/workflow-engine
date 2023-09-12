@@ -165,7 +165,7 @@ export class Processor {
       resultMap,
       currentTask
     );
-    
+
     if (functionResponseError) {
       this.logChild.error(`Task process failed for taskName: ${this.taskName}`);
       this.logChild.error(functionResponseError);
