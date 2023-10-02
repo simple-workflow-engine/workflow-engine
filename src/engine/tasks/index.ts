@@ -1,10 +1,10 @@
-import type { FunctionNode } from "../nodes/function";
+import type { FunctionNode } from '../nodes/function';
 
 export const TaskStatus = {
-  pending: "pending",
-  completed: "completed",
-  started: "started",
-  failed: "failed",
+  pending: 'pending',
+  completed: 'completed',
+  started: 'started',
+  failed: 'failed',
 } as const;
 
 export interface Task {
@@ -16,7 +16,7 @@ export interface Task {
     [key: string]: any | any[];
   };
   exec?: FunctionNode;
-  type: "FUNCTION" | "WAIT" | "START" | "END" | "LISTEN" | "GUARD";
+  type: 'FUNCTION' | 'WAIT' | 'START' | 'END' | 'LISTEN' | 'GUARD';
   status: keyof typeof TaskStatus;
 }
 
@@ -28,5 +28,5 @@ export interface Workflow {
     [key: string]: any;
   };
   tasks: Task[];
-  status: "pending" | "completed" | "failed";
+  status: 'pending' | 'completed' | 'failed';
 }

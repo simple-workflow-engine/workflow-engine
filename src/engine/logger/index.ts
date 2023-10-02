@@ -1,21 +1,20 @@
-import logger from "@/lib/utils/logger";
-import type { Logger as LoggerObj } from "winston";
+import { Logger as NestLogger } from '@nestjs/common';
 
 export class Logger {
-  private loggerObj: LoggerObj;
+  private loggerObj: NestLogger;
   logs: string[] = [];
   taskName: string;
 
   constructor(taskName: string) {
-    this.loggerObj = logger.child({
-      name: `Workflow:${taskName}`,
-    });
+    this.loggerObj = new NestLogger(`Workflow:${taskName}`);
     this.taskName = taskName;
   }
 
   log(...message: any[]) {
-    this.loggerObj.info(message);
-    this.logs.push([new Date().toJSON(), this.taskName, JSON.stringify(message)].join(" : "));
+    this.loggerObj.log(message);
+    this.logs.push(
+      [new Date().toJSON(), this.taskName, JSON.stringify(message)].join(' : '),
+    );
   }
 
   addLogs(logs: string[]) {

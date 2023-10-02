@@ -1,8 +1,6 @@
-import axios from "axios";
+import axios from 'axios';
 
 export class Utilities {
-  constructor() {}
-
   public async createTicket(params: { name: string; assignee: string }) {
     console.log(params.name);
     console.log(params.assignee);
@@ -13,7 +11,11 @@ export class Utilities {
     console.log(params.assignee);
   }
 
-  public async sendNotification(params: { name: string; email: string; payload: string }) {
+  public async sendNotification(params: {
+    name: string;
+    email: string;
+    payload: string;
+  }) {
     console.log(params.name);
     console.log(params.email);
     console.log(params.payload);
@@ -24,26 +26,26 @@ export class Utilities {
     payload?: { [key: string]: any };
     headers: { [key: string]: any };
     method:
-      | "get"
-      | "GET"
-      | "delete"
-      | "DELETE"
-      | "head"
-      | "HEAD"
-      | "options"
-      | "OPTIONS"
-      | "post"
-      | "POST"
-      | "put"
-      | "PUT"
-      | "patch"
-      | "PATCH"
-      | "purge"
-      | "PURGE"
-      | "link"
-      | "LINK"
-      | "unlink"
-      | "UNLINK";
+      | 'get'
+      | 'GET'
+      | 'delete'
+      | 'DELETE'
+      | 'head'
+      | 'HEAD'
+      | 'options'
+      | 'OPTIONS'
+      | 'post'
+      | 'POST'
+      | 'put'
+      | 'PUT'
+      | 'patch'
+      | 'PATCH'
+      | 'purge'
+      | 'PURGE'
+      | 'link'
+      | 'LINK'
+      | 'unlink'
+      | 'UNLINK';
     queryParams?: { [key: string]: any };
   }) {
     return axios({

@@ -1,36 +1,35 @@
-import { asyncHandler } from "@/lib/utils/asyncHandler";
-import logger from "@/lib/utils/logger";
-import type { Task } from "../tasks";
-
-import ism from "isolated-vm";
-import axios from "axios";
-import type { Logger } from "../logger";
+import { safeAsync } from '@lib/utils/safe';
+import type { Task } from '../tasks';
+import { Logger as NestLogger } from '@nestjs/common';
+import ism from 'isolated-vm';
+import axios from 'axios';
+import type { Logger } from '../logger';
 
 const httpClient = (params: {
   url: string;
   payload?: any;
   headers: Record<string, any>;
   method:
-    | "get"
-    | "GET"
-    | "delete"
-    | "DELETE"
-    | "head"
-    | "HEAD"
-    | "options"
-    | "OPTIONS"
-    | "post"
-    | "POST"
-    | "put"
-    | "PUT"
-    | "patch"
-    | "PATCH"
-    | "purge"
-    | "PURGE"
-    | "link"
-    | "LINK"
-    | "unlink"
-    | "UNLINK";
+    | 'get'
+    | 'GET'
+    | 'delete'
+    | 'DELETE'
+    | 'head'
+    | 'HEAD'
+    | 'options'
+    | 'OPTIONS'
+    | 'post'
+    | 'POST'
+    | 'put'
+    | 'PUT'
+    | 'patch'
+    | 'PATCH'
+    | 'purge'
+    | 'PURGE'
+    | 'link'
+    | 'LINK'
+    | 'unlink'
+    | 'UNLINK';
   queryParams?: Record<string, any>;
 }) =>
   axios({
@@ -46,11 +45,7 @@ const httpClient = (params: {
     .catch((error) => ({ success: false, error: error }));
 
 export class GuardProcessor {
-  private logChild = logger.child({
-    name: GuardProcessor.name,
-  });
-
-  constructor() {}
+  private logChild = new NestLogger(GuardProcessor.name);
 
   async process(
     params: {
@@ -63,13 +58,13 @@ export class GuardProcessor {
     results: {
       [key: string]: { [key: string]: any };
     },
-    task: Task
+    task: Task,
   ): Promise<
     | [
         {
           response: boolean;
         },
-        null
+        null,
       ]
     | [
         null,
@@ -77,7 +72,7 @@ export class GuardProcessor {
           message: string;
           error?: string;
           stackTrace?: string;
-        }
+        },
       ]
   > {
     const getWorkflowParams = () => params;
@@ -86,8 +81,10 @@ export class GuardProcessor {
 
     const logs: string[] = [];
     const addLog = (...message: any[]) => {
-      this.logChild.info(message);
-      logs.push([new Date().toJSON(), task.name, JSON.stringify(message)].join(" : "));
+      this.logChild.log(message);
+      logs.push(
+        [new Date().toJSON(), task.name, JSON.stringify(message)].join(' : '),
+      );
     };
 
     const ismObj = new ism.Isolate();
@@ -95,18 +92,18 @@ export class GuardProcessor {
     const context = await ismObj.createContext();
 
     const jail = context.global;
-    const jailSetResult = await asyncHandler(
+    const jailSetResult = await safeAsync(
       Promise.all([
-        jail.set("global", jail.derefInto()),
-        jail.set("getWorkflowParams", getWorkflowParams),
-        jail.set("getWorkflowGlobal", getWorkflowGlobal),
-        jail.set("getWorkflowResults", getWorkflowResults),
-        jail.set("httpClient", httpClient),
-        jail.set("logger", addLog),
-      ])
+        jail.set('global', jail.derefInto()),
+        jail.set('getWorkflowParams', getWorkflowParams),
+        jail.set('getWorkflowGlobal', getWorkflowGlobal),
+        jail.set('getWorkflowResults', getWorkflowResults),
+        jail.set('httpClient', httpClient),
+        jail.set('logger', addLog),
+      ]),
     );
 
-    if (!jailSetResult.success) {
+    if (jailSetResult.success === false) {
       this.logChild.error(`isolate-vm failed to set global`);
       this.logChild.error(jailSetResult.error);
     }
@@ -115,13 +112,13 @@ export class GuardProcessor {
       return [
         null,
         {
-          message: "Exec not found",
+          message: 'Exec not found',
           error: `No guard script found`,
           stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
         },
       ];
     }
-    const evalResult = await asyncHandler<string>(
+    const evalResult = await safeAsync<string>(
       await context.eval(
         `
     ${task.exec}
@@ -129,14 +126,14 @@ export class GuardProcessor {
     `,
         {
           promise: true,
-        }
-      )
+        },
+      ),
     );
     ismObj.dispose();
 
     loggerObj.addLogs(logs);
 
-    if (!evalResult.success) {
+    if (evalResult.success === false) {
       if (evalResult.error instanceof Error) {
         return [
           null,
@@ -150,7 +147,7 @@ export class GuardProcessor {
       return [
         null,
         {
-          message: "Task script have runtime error",
+          message: 'Task script have runtime error',
           stackTrace: JSON.stringify(evalResult.error),
         },
       ];
@@ -158,7 +155,7 @@ export class GuardProcessor {
 
     return [
       {
-        response: Boolean(evalResult.result),
+        response: Boolean(evalResult.data),
       },
       null,
     ];

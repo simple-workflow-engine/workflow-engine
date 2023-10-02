@@ -1,5 +1,6 @@
-import type { Utilities } from "../utilities/index";
-import type { Task } from "../tasks/index";
+import type { Utilities } from '../utilities/index';
+import type { Task } from '../tasks/index';
+import type { Logger } from '../logger';
 
 export type Context = {
   params: {
@@ -8,7 +9,7 @@ export type Context = {
   global: {
     [key: string]: any;
   };
-  logger: Function;
+  logger: Logger;
   utilities: Utilities;
   results: {
     [key: string]: { [key: string]: any };
