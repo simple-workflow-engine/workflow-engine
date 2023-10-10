@@ -1,99 +1,72 @@
 import type { Task } from '../../engine/tasks/index';
 import { safeAsync } from '@lib/utils/safe';
 import ism from 'isolated-vm';
-import { Logger as NestLogger } from '@nestjs/common';
-import type { Logger } from '../logger';
+import { LogSeverity, type WorkflowLogger } from '../logger';
 import axios from 'axios';
+import { ProcessorProcess } from '../engine.interface';
 
 const httpClient = async (...args: any[]) => {
   const result: any = await axios.apply(this, args);
   return result.data;
 };
 
-export class FunctionProcessor {
-  private logChild = new NestLogger(FunctionProcessor.name);
-
+export class FunctionProcessor implements ProcessorProcess {
   async process(
-    params: {
-      [key: string]: any;
-    },
-    global: {
-      [key: string]: any;
-    },
-    loggerObj: Logger,
+    params: Record<string, any>,
+    global: Record<string, any>,
+    loggerObj: WorkflowLogger,
     results: Record<string, any>,
     task: Task,
-  ): Promise<
-    | [
-        {
-          response: Record<string, any>;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error?: string;
-          stackTrace?: string;
-        },
-      ]
-  > {
-    const getWorkflowParams = () => params;
-    const getWorkflowGlobal = () => global;
-    const getWorkflowResults = () => results;
-
-    const logs: string[] = [];
-    const addLog = (...message: any[]) => {
-      this.logChild.log(message);
-      logs.push(
-        [new Date().toJSON(), task.name, JSON.stringify(message)].join(' : '),
-      );
-    };
-
+  ): Promise<{
+    response: unknown;
+  }> {
     const ismObj = new ism.Isolate();
 
     const context = await ismObj.createContext();
 
     const jail = context.global;
 
-    const jailSetResult = await safeAsync(
-      Promise.all([
-        context.evalClosure(
-          `
+    await Promise.all([
+      context.evalClosureSync(
+        `
+        globalThis.console = {
+          log: $0,
+          info: $1,
+          warn: $2,
+          error: $3
+        }
+      `,
+        [
+          (...args: any[]) => loggerObj.log(LogSeverity.log, ...args),
+          (...args: any[]) => loggerObj.log(LogSeverity.info, ...args),
+          (...args: any[]) => loggerObj.log(LogSeverity.warn, ...args),
+          (...args: any[]) => loggerObj.log(LogSeverity.error, ...args),
+        ],
+      ),
+      context.evalClosure(
+        `
           {
             axios = function (...args) {
                 return $0.apply(undefined, args, { arguments: { copy: true }, result: { promise: true, copy: true } });
             };
           }
         `,
-          [httpClient],
-          { arguments: { reference: true } },
-        ),
-        jail.set('global', jail.derefInto()),
-        jail.set('getWorkflowParams', getWorkflowParams),
-        jail.set('getWorkflowGlobal', getWorkflowGlobal),
-        jail.set('getWorkflowResults', getWorkflowResults),
-        jail.set('logger', addLog),
-      ]),
-    );
+        [httpClient],
+        { arguments: { reference: true } },
+      ),
+      jail.set('global', jail.derefInto()),
+      jail.set('workflowParams', params, {
+        copy: true,
+      }),
+      jail.set('workflowGlobal', global, {
+        copy: true,
+      }),
+      jail.set('workflowResults', results, {
+        copy: true,
+      }),
+    ]);
 
-    if (jailSetResult.success === false) {
-      this.logChild.error(`isolate-vm failed to set global`);
-      this.logChild.error(jailSetResult.error);
-    }
-
-    if (!task?.exec) {
-      return [
-        null,
-        {
-          message: 'Exec not found',
-          error: `No function script found`,
-          stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
-        },
-      ];
-    }
-    const evalResult = await safeAsync<string>(
+    const evalResult = await safeAsync(
       await context.eval(
         `
     ${task.exec}
@@ -101,75 +74,23 @@ export class FunctionProcessor {
     `,
         {
           promise: true,
+          copy: true,
         },
       ),
     );
     ismObj.dispose();
 
-    loggerObj.addLogs(logs);
-
     if (evalResult.success === false) {
-      this.logChild.error(`Context Eval failed for ${task.name}`);
-      this.logChild.error(evalResult.error);
-
-      if (evalResult.error instanceof Error) {
-        return [
-          null,
-          {
-            message: evalResult.error?.message,
-            stackTrace: evalResult.error?.stack,
-            error: evalResult.error?.name,
-          },
-        ];
-      }
-      return [
-        null,
-        {
-          message: 'Task script have runtime error',
-          stackTrace: JSON.stringify(evalResult.error),
-        },
-      ];
+      throw evalResult.error;
     }
 
-    if (!evalResult) {
-      return [
-        {
-          response: {},
-        },
-        null,
-      ];
+    if (!evalResult.data) {
+      return {
+        response: {},
+      };
     }
-
-    try {
-      const resultData = JSON.parse(evalResult.data);
-      return [
-        {
-          response: resultData,
-        },
-        null,
-      ];
-    } catch (error) {
-      this.logChild.log(evalResult.data);
-      this.logChild.error(`Result JSON parse failed for ${task.name}`);
-      this.logChild.error(error);
-      if (error instanceof Error) {
-        return [
-          null,
-          {
-            message: error.message,
-            stackTrace: error?.stack,
-            error: error.name,
-          },
-        ];
-      }
-      return [
-        null,
-        {
-          message: 'Task result parse failed',
-          stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
-          error: 'JSON.stringify failed',
-        },
-      ];
-    }
+    return {
+      response: evalResult.data,
+    };
   }
 }

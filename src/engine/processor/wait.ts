@@ -1,40 +1,21 @@
-import type { Task } from '../tasks';
+import { TaskStatus, type Task } from '../tasks';
 
 export class WaitProcessor {
   async process(
-    params: {
-      taskNames: string[];
-    },
-    task: Task,
+    waitTaskNames: string[],
     allTasks: Task[],
-  ): Promise<
-    | [
-        {
-          response: boolean;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error?: string;
-          stackTrace?: string;
-        },
-      ]
-  > {
+  ): Promise<{
+    response: boolean;
+  }> {
     const waitTasks = allTasks?.filter((taskItem) =>
-      params.taskNames.includes(taskItem.name),
+      waitTaskNames.includes(taskItem.name),
     );
 
     const waitTasksCompleted = waitTasks?.every(
-      (taskItem) => taskItem.status === 'completed',
+      (taskItem) => taskItem.status === TaskStatus.completed,
     );
-    return [
-      {
-        response: waitTasksCompleted,
-      },
-      null,
-    ];
+    return {
+      response: waitTasksCompleted,
+    };
   }
 }

@@ -1,124 +1,72 @@
 import { safeAsync } from '@lib/utils/safe';
 import type { Task } from '../tasks';
-import { Logger as NestLogger } from '@nestjs/common';
 import ism from 'isolated-vm';
 import axios from 'axios';
-import type { Logger } from '../logger';
+import { LogSeverity, type WorkflowLogger } from '../logger';
+import { ProcessorProcess } from '../engine.interface';
 
-const httpClient = (params: {
-  url: string;
-  payload?: any;
-  headers: Record<string, any>;
-  method:
-    | 'get'
-    | 'GET'
-    | 'delete'
-    | 'DELETE'
-    | 'head'
-    | 'HEAD'
-    | 'options'
-    | 'OPTIONS'
-    | 'post'
-    | 'POST'
-    | 'put'
-    | 'PUT'
-    | 'patch'
-    | 'PATCH'
-    | 'purge'
-    | 'PURGE'
-    | 'link'
-    | 'LINK'
-    | 'unlink'
-    | 'UNLINK';
-  queryParams?: Record<string, any>;
-}) =>
-  axios({
-    method: params.method,
-    url: params.url,
-    ...(params?.payload && { data: params.payload }),
-    headers: params.headers,
-    ...(params?.queryParams && {
-      params: params.queryParams,
-    }),
-  })
-    .then((res) => ({ success: true, data: res }))
-    .catch((error) => ({ success: false, error: error }));
+const httpClient = async (...args: any[]) => {
+  const result: any = await axios.apply(this, args);
+  return result.data;
+};
 
-export class GuardProcessor {
-  private logChild = new NestLogger(GuardProcessor.name);
-
+export class GuardProcessor implements ProcessorProcess {
   async process(
-    params: {
-      [key: string]: any;
-    },
-    global: {
-      [key: string]: any;
-    },
-    loggerObj: Logger,
-    results: {
-      [key: string]: { [key: string]: any };
-    },
+    params: Record<string, any>,
+    global: Record<string, any>,
+    loggerObj: WorkflowLogger,
+    results: Record<string, any>,
     task: Task,
-  ): Promise<
-    | [
-        {
-          response: boolean;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error?: string;
-          stackTrace?: string;
-        },
-      ]
-  > {
-    const getWorkflowParams = () => params;
-    const getWorkflowGlobal = () => global;
-    const getWorkflowResults = () => results;
-
-    const logs: string[] = [];
-    const addLog = (...message: any[]) => {
-      this.logChild.log(message);
-      logs.push(
-        [new Date().toJSON(), task.name, JSON.stringify(message)].join(' : '),
-      );
-    };
-
+  ): Promise<{
+    response: boolean;
+  }> {
     const ismObj = new ism.Isolate();
 
     const context = await ismObj.createContext();
 
     const jail = context.global;
-    const jailSetResult = await safeAsync(
-      Promise.all([
-        jail.set('global', jail.derefInto()),
-        jail.set('getWorkflowParams', getWorkflowParams),
-        jail.set('getWorkflowGlobal', getWorkflowGlobal),
-        jail.set('getWorkflowResults', getWorkflowResults),
-        jail.set('httpClient', httpClient),
-        jail.set('logger', addLog),
-      ]),
-    );
 
-    if (jailSetResult.success === false) {
-      this.logChild.error(`isolate-vm failed to set global`);
-      this.logChild.error(jailSetResult.error);
-    }
+    await Promise.all([
+      context.evalClosureSync(
+        `
+        globalThis.console = {
+          log: $0,
+          info: $1,
+          warn: $2,
+          error: $3
+        }
+      `,
+        [
+          (...args: any[]) => loggerObj.log(LogSeverity.log, ...args),
+          (...args: any[]) => loggerObj.log(LogSeverity.info, ...args),
+          (...args: any[]) => loggerObj.log(LogSeverity.warn, ...args),
+          (...args: any[]) => loggerObj.log(LogSeverity.error, ...args),
+        ],
+      ),
+      context.evalClosure(
+        `
+          {
+            axios = function (...args) {
+                return $0.apply(undefined, args, { arguments: { copy: true }, result: { promise: true, copy: true } });
+            };
+          }
+        `,
+        [httpClient],
+        { arguments: { reference: true } },
+      ),
+      jail.set('global', jail.derefInto()),
+      jail.set('workflowParams', params, {
+        copy: true,
+      }),
+      jail.set('workflowGlobal', global, {
+        copy: true,
+      }),
+      jail.set('workflowResults', results, {
+        copy: true,
+      }),
+    ]);
 
-    if (!task?.exec) {
-      return [
-        null,
-        {
-          message: 'Exec not found',
-          error: `No guard script found`,
-          stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
-        },
-      ];
-    }
-    const evalResult = await safeAsync<string>(
+    const evalResult = await safeAsync(
       await context.eval(
         `
     ${task.exec}
@@ -126,38 +74,18 @@ export class GuardProcessor {
     `,
         {
           promise: true,
+          copy: true,
         },
       ),
     );
     ismObj.dispose();
 
-    loggerObj.addLogs(logs);
-
     if (evalResult.success === false) {
-      if (evalResult.error instanceof Error) {
-        return [
-          null,
-          {
-            message: evalResult.error?.message,
-            stackTrace: evalResult.error?.stack,
-            error: evalResult.error?.name,
-          },
-        ];
-      }
-      return [
-        null,
-        {
-          message: 'Task script have runtime error',
-          stackTrace: JSON.stringify(evalResult.error),
-        },
-      ];
+      throw evalResult.error;
     }
 
-    return [
-      {
-        response: Boolean(evalResult.data),
-      },
-      null,
-    ];
+    return {
+      response: Boolean(evalResult.data),
+    };
   }
 }

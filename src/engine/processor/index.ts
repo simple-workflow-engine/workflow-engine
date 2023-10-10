@@ -1,6 +1,10 @@
-import { Logger } from '../logger/index';
-import { Injectable, Logger as NestLogger } from '@nestjs/common';
-import { TaskStatus, type Task } from '../tasks/index';
+import { WorkflowLogger } from '../logger/index';
+import {
+  BadRequestException,
+  Injectable,
+  Logger as NestLogger,
+} from '@nestjs/common';
+import { TaskStatus, type Task, TaskType } from '../tasks/index';
 
 import { FunctionProcessor } from './function';
 import axios, { AxiosError } from 'axios';
@@ -10,196 +14,125 @@ import { GuardProcessor } from './guard';
 import { WaitProcessor } from './wait';
 
 import { EngineService } from '../engine.service';
+import { ConfigService } from '@nestjs/config';
+import { RuntimeDocument, RuntimeStatus } from '@/runtime/runtime.schema';
 
 @Injectable()
 export class Processor {
   private logChild = new NestLogger(Processor.name);
 
-  constructor(private engineService: EngineService) {}
+  constructor(
+    private engineService: EngineService,
+    private configService: ConfigService,
+  ) {}
 
-  async processTask(
-    workflowRuntimeId: string,
-    taskName: string,
-  ): Promise<{
-    message: string;
-    data: Record<string, any>;
-    statusCode: number;
-  }> {
+  async processTask(workflowRuntimeId: string, taskName: string) {
     this.logChild.log(`Processing ${taskName} Started`);
 
-    const workflowRuntimeDataResult = await safeAsync(
-      this.runtimeCollection.findById(workflowRuntimeId),
+    const workflowRuntimeData = await this.engineService.findCurrentRuntime(
+      workflowRuntimeId,
     );
-    if (workflowRuntimeDataResult.success === false) {
-      this.logChild.error(
-        `WorkflowRuntime findById failed for ${workflowRuntimeId}`,
-      );
-      this.logChild.error(workflowRuntimeDataResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime findById failed for ${workflowRuntimeId}`,
-          statusCode: 500,
-        },
-      ];
-    }
-    if (!workflowRuntimeDataResult.data) {
-      this.logChild.error('Workflow Runtime Data not found');
-      return [
-        null,
-        {
-          message: 'Bad Request',
-          error: `Can not fetch runtime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 400,
-        },
-      ];
+
+    if (!workflowRuntimeData) {
+      throw new BadRequestException({
+        message: 'Bad Request',
+        error: `Can not fetch runtime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
+        statusCode: 400,
+      });
     }
 
-    const currentTask: Task | null | undefined =
-      workflowRuntimeDataResult.data.tasks.find(
-        (item) => item.name === taskName,
-      );
+    const currentTask: Task | null | undefined = workflowRuntimeData.tasks.find(
+      (item) => item.name === taskName,
+    );
 
     if (!currentTask) {
       this.logChild.error(
         `No currentTask found for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
       );
-      return [
-        null,
-        {
-          message: 'Bad Request',
-          error: `No currentTask found for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 400,
-        },
-      ];
+      throw new BadRequestException({
+        message: 'Bad Request',
+        error: `No currentTask found for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
+        statusCode: 400,
+      });
     }
     // Start Status
     await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-          'tasks.id': currentTask.id,
-        },
-        {
-          $set: { 'tasks.$.status': TaskStatus.started },
-        },
+      this.engineService.updateTaskStatus(
+        workflowRuntimeId,
+        currentTask.id,
+        TaskStatus.started,
       ),
     );
 
     if (currentTask.type === 'FUNCTION') {
-      return this.processFunctionTask(
-        workflowRuntimeDataResult.result,
-        currentTask,
-      );
+      return this.processFunctionTask(workflowRuntimeData, currentTask);
     } else if (currentTask.type === 'START') {
-      return this.processStartTask(
-        workflowRuntimeDataResult.result,
-        currentTask,
-      );
+      return this.processStartTask(workflowRuntimeData, currentTask);
     } else if (currentTask.type === 'END') {
-      return this.processEndTask(workflowRuntimeDataResult.result, currentTask);
+      return this.processEndTask(workflowRuntimeData, currentTask);
     } else if (currentTask.type === 'WAIT') {
-      return this.processWaitTask(
-        workflowRuntimeDataResult.result,
-        currentTask,
-      );
+      return this.processWaitTask(workflowRuntimeData, currentTask);
     } else if (currentTask.type === 'GUARD') {
-      return this.processGuardTask(
-        workflowRuntimeDataResult.result,
-        currentTask,
-      );
+      return this.processGuardTask(workflowRuntimeData, currentTask);
     } else {
       this.logChild.error(
         `Unknown Task type received: ${currentTask.type} for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
       );
-      return [
-        null,
-        {
-          statusCode: 400,
-          message: 'Bad Request',
-          error: `Unknown Task type received: ${currentTask.type} for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-        },
-      ];
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Bad Request',
+        error: `Unknown Task type received: ${currentTask.type} for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
+      });
     }
   }
 
   private async processFunctionTask(
-    workflowRuntimeData: WorkflowRuntimeDocument,
+    workflowRuntimeData: RuntimeDocument,
     currentTask: Task,
-  ): Promise<
-    | [
-        {
-          message: string;
-          data: Record<string, any>;
-          statusCode: number;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error: string;
-          statusCode: number;
-        },
-      ]
-  > {
-    const loggerObj = new Logger(taskName);
+  ): Promise<{
+    status: 'success' | 'failure';
+  }> {
+    const loggerObj = new WorkflowLogger(currentTask.name);
 
     const params = currentTask.params ?? {};
 
-    const global: { [key: string]: any } = workflowRuntimeData?.global ?? {};
+    const global = workflowRuntimeData?.global ?? {};
 
-    const resultMap: {
-      [key: string]: { [key: string]: any };
-    } = { ...workflowRuntimeData.workflowResults };
+    const resultMap = structuredClone(workflowRuntimeData.workflowResults);
 
     const functionProcessor = new FunctionProcessor();
-    const [functionResponse, functionResponseError] =
-      await functionProcessor.process(
+    const processResult = await safeAsync(
+      functionProcessor.process(
         params,
         global,
         loggerObj,
         resultMap,
         currentTask,
-      );
+      ),
+    );
 
-    if (functionResponseError) {
-      this.logChild.error(`Task process failed for taskName: ${taskName}`);
-      this.logChild.error(functionResponseError);
+    if (processResult.success === false) {
+      this.logChild.error(
+        `Task process failed for taskName: ${currentTask.name}`,
+      );
+      this.logChild.error(processResult.error);
 
       // Fail Status
       await safeAsync(
-        WorkflowRuntime.updateOne(
-          {
-            _id: workflowRuntimeId,
-            'tasks.id': currentTask.id,
-          },
-          {
-            $set: { 'tasks.$.status': TaskStatus.failed },
-          },
+        this.engineService.updateTaskStatus(
+          workflowRuntimeData._id?.toString(),
+          currentTask.id,
+          TaskStatus.failed,
         ),
       );
 
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `Task process failed for taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
+      return {
+        status: 'failure',
+      };
     }
 
-    // Updated Result
-    const updatedResultMap = {
-      ...resultMap,
-      [currentTask.name]: functionResponse?.response ?? {},
-    };
-
     // Updated Task
-    const updatedTasks = [...workflowRuntimeData.tasks];
+    const updatedTasks: Task[] = [...workflowRuntimeData.tasks];
     const updateIndex = updatedTasks.findIndex(
       (task) => task.id === currentTask.id,
     );
@@ -212,197 +145,114 @@ export class Processor {
     const updatedLogs = loggerObj.Logs;
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: 'completed' | 'pending' = 'pending';
-    const endTask = updatedTasks.find((task) => task.type === 'END');
+    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
-      updatedWorkflowStatus = 'completed';
+      updatedWorkflowStatus = RuntimeStatus.completed;
     }
 
     // Updated Runtime
-    const updatedRuntimeResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-        },
-        {
-          $set: {
-            [`workflowResults.${currentTask.name}`]:
-              functionResponse?.response ?? {},
-          },
-          ...(updatedWorkflowStatus === 'completed' && {
-            workflowStatus: updatedWorkflowStatus,
-          }),
-          $push: {
-            logs: {
-              $each: updatedLogs,
-            },
-          },
-        },
+    await safeAsync(
+      this.engineService.updateWorkflowResult(
+        workflowRuntimeData._id.toString(),
+        currentTask.name,
+        processResult.data?.response,
       ),
     );
 
-    const updatedRuntimeTaskResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-          'tasks.id': currentTask.id,
-        },
-        {
-          $set: { 'tasks.$.status': TaskStatus.completed },
-        },
+    if (updatedWorkflowStatus === RuntimeStatus.completed) {
+      await safeAsync(
+        this.engineService.updateWorkflowStatus(
+          workflowRuntimeData._id.toString(),
+          updatedWorkflowStatus,
+        ),
+      );
+    }
+
+    await safeAsync(
+      this.engineService.updateRuntimeLogs(
+        workflowRuntimeData._id.toString(),
+        updatedLogs,
       ),
     );
 
-    if (!updatedRuntimeTaskResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeTaskResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
+    await safeAsync(
+      this.engineService.updateTaskStatus(
+        workflowRuntimeData._id?.toString(),
+        currentTask.id,
+        TaskStatus.completed,
+      ),
+    );
 
-    if (!updatedRuntimeResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.result) {
-      this.logChild.error(
-        `Can not update WorkflowRuntime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-    }
-
-    const nextTasks = updatedTasks.filter((item) =>
-      currentTask.next.includes(item.name),
+    const nextTasks = updatedTasks.filter(
+      (item) =>
+        currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
     );
     nextTasks.forEach((task) => {
-      if (task.type !== 'LISTEN') {
-        axios({
-          method: 'POST',
-          baseURL: EnvVars.DEPLOYED_URL,
-          url: '/workflow/process',
-          data: {
-            workflowRuntimeId: workflowRuntimeId,
-            taskName: task.name,
-          },
-        }).catch((error) => {
-          if (error instanceof AxiosError) {
-            this.logChild.error(error?.response?.data);
-          } else {
-            this.logChild.error(error);
-          }
-        });
-      }
+      axios({
+        method: 'POST',
+        baseURL: this.configService.get<string>('DEPLOYED_URL'),
+        url: '/workflow/process',
+        data: {
+          workflowRuntimeId: workflowRuntimeData._id.toString(),
+          taskName: task.name,
+        },
+      }).catch((error) => {
+        if (error instanceof AxiosError) {
+          this.logChild.error(error?.response?.data);
+        } else {
+          this.logChild.error(error);
+        }
+      });
     });
 
-    return [
-      {
-        message: 'Task processed successfully',
-        data: {
-          updatedTasks,
-          updatedResultMap,
-          updatedWorkflowStatus,
-        },
-        statusCode: 200,
-      },
-      null,
-    ];
+    return {
+      status: 'success',
+    };
   }
 
   private async processGuardTask(
-    workflowRuntimeData: WorkflowRuntimeDocument,
+    workflowRuntimeData: RuntimeDocument,
     currentTask: Task,
-  ): Promise<
-    | [
-        {
-          message: string;
-          data: Record<string, any>;
-          statusCode: number;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error: string;
-          statusCode: number;
-        },
-      ]
-  > {
-    const loggerObj = new Logger(taskName);
+  ): Promise<{
+    status: 'success' | 'failure';
+  }> {
+    const loggerObj = new WorkflowLogger(currentTask.name);
 
     const params = currentTask.params ?? {};
 
-    const global: { [key: string]: any } = workflowRuntimeData?.global ?? {};
+    const global = workflowRuntimeData?.global ?? {};
 
-    const resultMap: {
-      [key: string]: { [key: string]: any };
-    } = { ...workflowRuntimeData.workflowResults };
+    const resultMap = structuredClone(workflowRuntimeData.workflowResults);
 
     const guardProcessor = new GuardProcessor();
-    const [guardResponse, guardResponseError] = await guardProcessor.process(
-      params,
-      global,
-      loggerObj,
-
-      resultMap,
-      currentTask,
+    const processResult = await safeAsync(
+      guardProcessor.process(params, global, loggerObj, resultMap, currentTask),
     );
 
-    if (guardResponseError) {
-      this.logChild.error(`Task process failed for taskName: ${taskName}`);
-      this.logChild.error(guardResponseError);
+    if (processResult.success === false) {
+      this.logChild.error(
+        `Task process failed for taskName: ${currentTask.name}`,
+      );
+      this.logChild.error(processResult.error);
 
       // Fail Status
       await safeAsync(
-        WorkflowRuntime.updateOne(
-          {
-            _id: workflowRuntimeId,
-            'tasks.id': currentTask.id,
-          },
-          {
-            $set: { 'tasks.$.status': TaskStatus.failed },
-          },
+        this.engineService.updateTaskStatus(
+          workflowRuntimeData._id?.toString(),
+          currentTask.id,
+          TaskStatus.failed,
         ),
       );
 
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `Task process failed for taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
+      return {
+        status: 'failure',
+      };
     }
 
-    // Updated Result
-    const updatedResultMap = {
-      ...resultMap,
-      [currentTask.name]: guardResponse?.response ?? {},
-    };
-
     // Updated Task
-    const updatedTasks = [...workflowRuntimeData.tasks];
+    const updatedTasks: Task[] = [...workflowRuntimeData.tasks];
     const updateIndex = updatedTasks.findIndex(
       (task) => task.id === currentTask.id,
     );
@@ -415,248 +265,58 @@ export class Processor {
     const updatedLogs = loggerObj.Logs;
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: 'completed' | 'pending' = 'pending';
-    const endTask = updatedTasks.find((task) => task.type === 'END');
+    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
-      updatedWorkflowStatus = 'completed';
+      updatedWorkflowStatus = RuntimeStatus.completed;
     }
 
     // Updated Runtime
-    const updatedRuntimeResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-        },
-        {
-          $set: {
-            [`workflowResults.${currentTask.name}`]:
-              guardResponse?.response ?? {},
-          },
-          ...(updatedWorkflowStatus === 'completed' && {
-            workflowStatus: updatedWorkflowStatus,
-          }),
-          $push: {
-            logs: {
-              $each: updatedLogs,
-            },
-          },
-        },
+    await safeAsync(
+      this.engineService.updateWorkflowResult(
+        workflowRuntimeData._id.toString(),
+        currentTask.name,
+        processResult.data?.response,
       ),
     );
 
-    const updatedRuntimeTaskResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-          'tasks.id': currentTask.id,
-        },
-        {
-          $set: { 'tasks.$.status': TaskStatus.completed },
-        },
+    if (updatedWorkflowStatus === RuntimeStatus.completed) {
+      await safeAsync(
+        this.engineService.updateWorkflowStatus(
+          workflowRuntimeData._id.toString(),
+          updatedWorkflowStatus,
+        ),
+      );
+    }
+
+    await safeAsync(
+      this.engineService.updateRuntimeLogs(
+        workflowRuntimeData._id.toString(),
+        updatedLogs,
       ),
     );
 
-    if (!updatedRuntimeTaskResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeTaskResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
+    await safeAsync(
+      this.engineService.updateTaskStatus(
+        workflowRuntimeData._id?.toString(),
+        currentTask.id,
+        TaskStatus.completed,
+      ),
+    );
 
-    if (!updatedRuntimeResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.result) {
-      this.logChild.error(
-        `Can not update WorkflowRuntime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-    }
-
-    if (guardResponse?.response) {
-      const nextTasks = updatedTasks.filter((item) =>
-        currentTask.next.includes(item.name),
+    if (processResult?.data) {
+      const nextTasks = updatedTasks.filter(
+        (item) =>
+          currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
       );
       nextTasks.forEach((task) => {
-        if (task.type !== 'LISTEN') {
-          axios({
-            method: 'POST',
-            baseURL: EnvVars.DEPLOYED_URL,
-            url: '/workflow/process',
-            data: {
-              workflowRuntimeId: workflowRuntimeId,
-              taskName: task.name,
-            },
-          }).catch((error) => {
-            if (error instanceof AxiosError) {
-              this.logChild.error(error?.response?.data);
-            } else {
-              this.logChild.error(error);
-            }
-          });
-        }
-      });
-    }
-
-    return [
-      {
-        message: 'Task processed successfully',
-        data: {
-          updatedTasks,
-          updatedResultMap,
-          updatedWorkflowStatus,
-        },
-        statusCode: 200,
-      },
-      null,
-    ];
-  }
-
-  private async processStartTask(
-    workflowRuntimeData: WorkflowRuntimeDocument,
-    currentTask: Task,
-  ): Promise<
-    | [
-        {
-          message: string;
-          data: Record<string, any>;
-          statusCode: number;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error: string;
-          statusCode: number;
-        },
-      ]
-  > {
-    const resultMap: {
-      [key: string]: { [key: string]: any };
-    } = { ...workflowRuntimeData.workflowResults };
-
-    // Updated Result
-    const updatedResultMap = {
-      ...resultMap,
-      [currentTask.name]: {},
-    };
-
-    // Updated Task
-    const updatedTasks = [...workflowRuntimeData.tasks];
-    const updateIndex = updatedTasks.findIndex(
-      (task) => task.id === currentTask.id,
-    );
-    updatedTasks[updateIndex] = {
-      ...updatedTasks[updateIndex],
-      status: TaskStatus.completed,
-    };
-
-    // Updated Workflow Status
-    let updatedWorkflowStatus: 'completed' | 'pending' = 'pending';
-    const endTask = updatedTasks.find((task) => task.type === 'END');
-    const allCompleted = endTask?.status === 'completed';
-    if (allCompleted) {
-      updatedWorkflowStatus = 'completed';
-    }
-
-    // Updated Runtime
-    const updatedRuntimeResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-        },
-        {
-          $set: {
-            [`workflowResults.${currentTask.name}`]: {},
-          },
-          ...(updatedWorkflowStatus === 'completed' && {
-            workflowStatus: updatedWorkflowStatus,
-          }),
-        },
-      ),
-    );
-
-    const updatedRuntimeTaskResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-          'tasks.id': currentTask.id,
-        },
-        {
-          $set: { 'tasks.$.status': TaskStatus.completed },
-        },
-      ),
-    );
-
-    if (!updatedRuntimeTaskResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeTaskResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.result) {
-      this.logChild.error(
-        `Can not update WorkflowRuntime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-    }
-
-    const nextTasks = updatedTasks.filter((item) =>
-      currentTask.next.includes(item.name),
-    );
-    nextTasks.forEach((task) => {
-      if (task.type !== 'LISTEN') {
         axios({
           method: 'POST',
-          baseURL: EnvVars.DEPLOYED_URL,
+          baseURL: this.configService.get<string>('DEPLOYED_URL'),
           url: '/workflow/process',
           data: {
-            workflowRuntimeId: workflowRuntimeId,
+            workflowRuntimeId: workflowRuntimeData._id.toString(),
             taskName: task.name,
           },
         }).catch((error) => {
@@ -666,355 +326,255 @@ export class Processor {
             this.logChild.error(error);
           }
         });
-      }
-    });
-
-    return [
-      {
-        message: 'Task processed successfully',
-        data: {
-          updatedTasks,
-          updatedResultMap,
-          updatedWorkflowStatus,
-        },
-        statusCode: 200,
-      },
-      null,
-    ];
-  }
-
-  private async processEndTask(
-    workflowRuntimeData: WorkflowRuntimeDocument,
-    currentTask: Task,
-  ): Promise<
-    | [
-        {
-          message: string;
-          data: Record<string, any>;
-          statusCode: number;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error: string;
-          statusCode: number;
-        },
-      ]
-  > {
-    const resultMap: {
-      [key: string]: { [key: string]: any };
-    } = { ...workflowRuntimeData.workflowResults };
-
-    // Updated Result
-    const updatedResultMap = {
-      ...resultMap,
-      [currentTask.name]: {},
-    };
-
-    // Updated Task
-    const updatedTasks = [...workflowRuntimeData.tasks];
-    const updateIndex = updatedTasks.findIndex(
-      (task) => task.id === currentTask.id,
-    );
-    updatedTasks[updateIndex] = {
-      ...updatedTasks[updateIndex],
-      status: TaskStatus.completed,
-    };
-
-    // Updated Workflow Status
-    let updatedWorkflowStatus: 'completed' | 'pending' = 'pending';
-    const endTask = updatedTasks.find((task) => task.type === 'END');
-    const allCompleted = endTask?.status === 'completed';
-    if (allCompleted) {
-      updatedWorkflowStatus = 'completed';
-    }
-
-    // Updated Runtime
-    const updatedRuntimeResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-        },
-        {
-          $set: {
-            [`workflowResults.${currentTask.name}`]: {},
-          },
-          ...(updatedWorkflowStatus === 'completed' && {
-            workflowStatus: updatedWorkflowStatus,
-          }),
-        },
-      ),
-    );
-
-    const updatedRuntimeTaskResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-          'tasks.id': currentTask.id,
-        },
-        {
-          $set: { 'tasks.$.status': TaskStatus.completed },
-        },
-      ),
-    );
-
-    if (!updatedRuntimeTaskResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeTaskResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.result) {
-      this.logChild.error(
-        `Can not update WorkflowRuntime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-    }
-
-    return [
-      {
-        message: 'Task processed successfully',
-        data: {
-          updatedTasks,
-          updatedResultMap,
-          updatedWorkflowStatus,
-        },
-        statusCode: 200,
-      },
-      null,
-    ];
-  }
-
-  private async processWaitTask(
-    workflowRuntimeData: WorkflowRuntimeDocument,
-    currentTask: Task,
-  ): Promise<
-    | [
-        {
-          message: string;
-          data: Record<string, any>;
-          statusCode: number;
-        },
-        null,
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error: string;
-          statusCode: number;
-        },
-      ]
-  > {
-    if (currentTask.status === TaskStatus.completed) {
-      return [
-        {
-          statusCode: 200,
-          message: 'Task already processed successfully',
-          data: {},
-        },
-        null,
-      ];
-    }
-    const loggerObj = new Logger(taskName);
-    const resultMap: {
-      [key: string]: { [key: string]: any };
-    } = { ...workflowRuntimeData.workflowResults };
-    const allTasks = workflowRuntimeData.tasks;
-    const params = (currentTask.params ?? {
-      taskNames: [],
-    }) as {
-      taskNames: string[];
-    };
-
-    const waitProcessor = new WaitProcessor();
-    const [waitResponse, waitResponseError] = await waitProcessor.process(
-      params,
-      currentTask,
-      allTasks,
-    );
-
-    if (waitResponseError) {
-      this.logChild.error(`Task process failed for taskName: ${taskName}`);
-      this.logChild.error(waitResponseError);
-
-      // Fail Status
-      await safeAsync(
-        WorkflowRuntime.updateOne(
-          {
-            _id: workflowRuntimeId,
-            'tasks.id': currentTask.id,
-          },
-          {
-            $set: { 'tasks.$.status': TaskStatus.failed },
-          },
-        ),
-      );
-
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `Task process failed for taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    // Updated Result
-    const updatedResultMap = {
-      ...resultMap,
-      [currentTask.name]: waitResponse?.response ?? {},
-    };
-
-    // Updated Task
-    const updatedTasks = [...workflowRuntimeData.tasks];
-    const updateIndex = updatedTasks.findIndex(
-      (task) => task.id === currentTask.id,
-    );
-    updatedTasks[updateIndex] = {
-      ...updatedTasks[updateIndex],
-      status: TaskStatus.completed,
-    };
-
-    // Updated Logs
-    const updatedLogs = loggerObj.Logs;
-
-    // Updated Workflow Status
-    let updatedWorkflowStatus: 'completed' | 'pending' = 'pending';
-    const endTask = updatedTasks.find((task) => task.type === 'END');
-    const allCompleted = endTask?.status === 'completed';
-    if (allCompleted) {
-      updatedWorkflowStatus = 'completed';
-    }
-
-    // Updated Runtime
-    const updatedRuntimeResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-        },
-        {
-          $set: {
-            [`workflowResults.${currentTask.name}`]:
-              waitResponse?.response ?? {},
-          },
-          ...(updatedWorkflowStatus === 'completed' && {
-            workflowStatus: updatedWorkflowStatus,
-          }),
-          $push: {
-            logs: {
-              $each: updatedLogs,
-            },
-          },
-        },
-      ),
-    );
-
-    const updatedRuntimeTaskResult = await safeAsync(
-      WorkflowRuntime.updateOne(
-        {
-          _id: workflowRuntimeId,
-          'tasks.id': currentTask.id,
-        },
-        {
-          $set: { 'tasks.$.status': TaskStatus.completed },
-        },
-      ),
-    );
-
-    if (!updatedRuntimeTaskResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeTaskResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime Task updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.success) {
-      this.logChild.error(
-        `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-      this.logChild.error(updatedRuntimeResult.error);
-      return [
-        null,
-        {
-          message: 'Internal Server Error',
-          error: `WorkflowRuntime updateOne failed for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-          statusCode: 500,
-        },
-      ];
-    }
-
-    if (!updatedRuntimeResult.result) {
-      this.logChild.error(
-        `Can not update WorkflowRuntime for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
-      );
-    }
-
-    if (waitResponse?.response) {
-      const nextTasks = updatedTasks.filter((item) =>
-        currentTask.next.includes(item.name),
-      );
-      nextTasks.forEach((task) => {
-        if (task.type !== 'LISTEN') {
-          axios({
-            method: 'POST',
-            baseURL: EnvVars.DEPLOYED_URL,
-            url: '/workflow/process',
-            data: {
-              workflowRuntimeId: workflowRuntimeId,
-              taskName: task.name,
-            },
-          });
-        }
       });
     }
 
-    return [
-      {
-        message: 'Task processed successfully',
-        data: {
-          updatedTasks,
-          updatedResultMap,
+    return {
+      status: 'success',
+    };
+  }
+
+  private async processStartTask(
+    workflowRuntimeData: RuntimeDocument,
+    currentTask: Task,
+  ): Promise<{
+    status: 'success' | 'failure';
+  }> {
+    // Updated Task
+    const updatedTasks: Task[] = [...workflowRuntimeData.tasks];
+    const updateIndex = updatedTasks.findIndex(
+      (task) => task.id === currentTask.id,
+    );
+    updatedTasks[updateIndex] = {
+      ...updatedTasks[updateIndex],
+      status: TaskStatus.completed,
+    };
+
+    // Updated Workflow Status
+    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
+    const allCompleted = endTask?.status === 'completed';
+    if (allCompleted) {
+      updatedWorkflowStatus = RuntimeStatus.completed;
+    }
+
+    // Updated Runtime
+    await safeAsync(
+      this.engineService.updateWorkflowResult(
+        workflowRuntimeData._id.toString(),
+        currentTask.name,
+        {},
+      ),
+    );
+
+    if (updatedWorkflowStatus === RuntimeStatus.completed) {
+      await safeAsync(
+        this.engineService.updateWorkflowStatus(
+          workflowRuntimeData._id.toString(),
           updatedWorkflowStatus,
+        ),
+      );
+    }
+
+    await safeAsync(
+      this.engineService.updateTaskStatus(
+        workflowRuntimeData._id?.toString(),
+        currentTask.id,
+        TaskStatus.completed,
+      ),
+    );
+
+    const nextTasks = updatedTasks.filter(
+      (item) =>
+        currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
+    );
+    nextTasks.forEach((task) => {
+      axios({
+        method: 'POST',
+        baseURL: this.configService.get<string>('DEPLOYED_URL'),
+        url: '/workflow/process',
+        data: {
+          workflowRuntimeId: workflowRuntimeData._id.toString(),
+          taskName: task.name,
         },
-        statusCode: 200,
-      },
-      null,
-    ];
+      }).catch((error) => {
+        if (error instanceof AxiosError) {
+          this.logChild.error(error?.response?.data);
+        } else {
+          this.logChild.error(error);
+        }
+      });
+    });
+
+    return {
+      status: 'success',
+    };
+  }
+
+  private async processEndTask(
+    workflowRuntimeData: RuntimeDocument,
+    currentTask: Task,
+  ): Promise<{
+    status: 'success' | 'failure';
+  }> {
+    // Updated Task
+    const updatedTasks: Task[] = [...workflowRuntimeData.tasks];
+    const updateIndex = updatedTasks.findIndex(
+      (task) => task.id === currentTask.id,
+    );
+    updatedTasks[updateIndex] = {
+      ...updatedTasks[updateIndex],
+      status: TaskStatus.completed,
+    };
+
+    // Updated Workflow Status
+    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
+    const allCompleted = endTask?.status === 'completed';
+    if (allCompleted) {
+      updatedWorkflowStatus = RuntimeStatus.completed;
+    }
+
+    // Updated Runtime
+    await safeAsync(
+      this.engineService.updateWorkflowResult(
+        workflowRuntimeData._id.toString(),
+        currentTask.name,
+        {},
+      ),
+    );
+
+    if (updatedWorkflowStatus === RuntimeStatus.completed) {
+      await safeAsync(
+        this.engineService.updateWorkflowStatus(
+          workflowRuntimeData._id.toString(),
+          updatedWorkflowStatus,
+        ),
+      );
+    }
+
+    await safeAsync(
+      this.engineService.updateTaskStatus(
+        workflowRuntimeData._id?.toString(),
+        currentTask.id,
+        TaskStatus.completed,
+      ),
+    );
+
+    return {
+      status: 'success',
+    };
+  }
+
+  private async processWaitTask(
+    workflowRuntimeData: RuntimeDocument,
+    currentTask: Task,
+  ): Promise<{
+    status: 'success' | 'failure';
+  }> {
+    if (currentTask.status === TaskStatus.completed) {
+      return {
+        status: 'success',
+      };
+    }
+
+    const allTasks = workflowRuntimeData.tasks;
+
+    const waitProcessor = new WaitProcessor();
+    const processResult = await safeAsync(
+      waitProcessor.process(currentTask.params?.taskNames ?? [], allTasks),
+    );
+
+    if (processResult.success === false) {
+      this.logChild.error(
+        `Task process failed for taskName: ${currentTask.name}`,
+      );
+      this.logChild.error(processResult.error);
+
+      // Fail Status
+      await safeAsync(
+        this.engineService.updateTaskStatus(
+          workflowRuntimeData._id?.toString(),
+          currentTask.id,
+          TaskStatus.failed,
+        ),
+      );
+
+      return {
+        status: 'failure',
+      };
+    }
+
+    // Updated Task
+    const updatedTasks: Task[] = [...workflowRuntimeData.tasks];
+    const updateIndex = updatedTasks.findIndex(
+      (task) => task.id === currentTask.id,
+    );
+    updatedTasks[updateIndex] = {
+      ...updatedTasks[updateIndex],
+      status: TaskStatus.completed,
+    };
+
+    // Updated Workflow Status
+    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
+    const allCompleted = endTask?.status === 'completed';
+    if (allCompleted) {
+      updatedWorkflowStatus = RuntimeStatus.completed;
+    }
+
+    // Updated Runtime
+    await safeAsync(
+      this.engineService.updateWorkflowResult(
+        workflowRuntimeData._id.toString(),
+        currentTask.name,
+        processResult.data?.response,
+      ),
+    );
+
+    if (updatedWorkflowStatus === RuntimeStatus.completed) {
+      await safeAsync(
+        this.engineService.updateWorkflowStatus(
+          workflowRuntimeData._id.toString(),
+          updatedWorkflowStatus,
+        ),
+      );
+    }
+
+    await safeAsync(
+      this.engineService.updateTaskStatus(
+        workflowRuntimeData._id?.toString(),
+        currentTask.id,
+        TaskStatus.completed,
+      ),
+    );
+
+    if (processResult?.data) {
+      const nextTasks = updatedTasks.filter(
+        (item) =>
+          currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
+      );
+      nextTasks.forEach((task) => {
+        axios({
+          method: 'POST',
+          baseURL: this.configService.get<string>('DEPLOYED_URL'),
+          url: '/workflow/process',
+          data: {
+            workflowRuntimeId: workflowRuntimeData._id.toString(),
+            taskName: task.name,
+          },
+        }).catch((error) => {
+          if (error instanceof AxiosError) {
+            this.logChild.error(error?.response?.data);
+          } else {
+            this.logChild.error(error);
+          }
+        });
+      });
+    }
+
+    return {
+      status: 'success',
+    };
   }
 }

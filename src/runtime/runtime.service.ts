@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Runtime, RuntimeDocument } from './runtime.schema';
-import { Model, ObjectId, Types } from 'mongoose';
-import { Task } from '@/engine/tasks';
+import { Model, Types } from 'mongoose';
 import { safeAsync } from '@/lib/utils/safe';
 import { DefinitionDocument } from '@/definition/definition.schema';
 
@@ -97,20 +96,8 @@ export class RuntimeService {
       });
     }
 
-    const splittedLogs =
-      runtime?.logs.map((logString) => {
-        const [datetime, taskName, log] = logString
-          .split(' : ')
-          .map((i) => i.trim());
-        return {
-          datetime,
-          taskName,
-          log,
-        };
-      }) ?? [];
-
     return {
-      data: { ...runtime, splittedLogs },
+      data: runtime,
       message: 'Runtime detail fetched successfully',
       statusCode: 200,
     };

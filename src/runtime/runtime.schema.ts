@@ -1,6 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { Definition } from '../definition/definition.schema';
+import { LogObject } from '@/engine/logger';
+
+export enum RuntimeStatus {
+  'pending' = 'pending',
+  'completed' = 'completed',
+  'failed' = 'failed',
+}
 
 @Schema({
   timestamps: true,
@@ -23,10 +30,10 @@ export class Runtime {
   @Prop({
     type: String,
     required: false,
-    enum: ['pending', 'completed', 'failed'],
-    default: 'pending',
+    enum: RuntimeStatus,
+    default: RuntimeStatus.pending,
   })
-  workflowStatus: 'pending' | 'completed' | 'failed';
+  workflowStatus: RuntimeStatus;
 
   @Prop({
     type: Array,
@@ -40,7 +47,7 @@ export class Runtime {
     required: true,
     default: [],
   })
-  logs: Array<`${string} : ${string} : ${string}`>;
+  logs: Array<LogObject>;
 
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
