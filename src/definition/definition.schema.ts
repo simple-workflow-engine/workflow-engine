@@ -3,10 +3,13 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { ApiProperty } from '@nestjs/swagger';
 import { HydratedDocument } from 'mongoose';
 
-export enum DefinitionStatus {
-  'active' = 'active',
-  'inactive' = 'inactive',
-}
+export const DefinitionStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export type DefinitionStatusType = keyof typeof DefinitionStatus;
+export const DefinitionStatusEnum = Object.keys(DefinitionStatus);
 
 @Schema({
   timestamps: true,
@@ -54,17 +57,17 @@ export class Definition {
   global?: Record<string, any>;
 
   @ApiProperty({
-    enum: DefinitionStatus,
+    enum: DefinitionStatusEnum,
     type: String,
     description: 'Status',
   })
   @Prop({
     type: String,
     required: true,
-    enum: DefinitionStatus,
+    enum: DefinitionStatusEnum,
     default: 'active',
   })
-  status: DefinitionStatus;
+  status: DefinitionStatusType;
 
   @ApiProperty({
     type: Object,

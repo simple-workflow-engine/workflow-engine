@@ -8,8 +8,6 @@ import { TestConsumer } from './test.consumer';
 import { AuthModule } from './auth/auth.module';
 import { DefinitionModule } from './definition/definition.module';
 import { RuntimeModule } from './runtime/runtime.module';
-import { APP_PIPE } from '@nestjs/core';
-import { ZodValidationPipe } from 'nestjs-zod';
 
 @Module({
   imports: [
@@ -29,13 +27,6 @@ import { ZodValidationPipe } from 'nestjs-zod';
     RuntimeModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    TestConsumer,
-    {
-      provide: APP_PIPE,
-      useClass: ZodValidationPipe,
-    },
-  ],
+  providers: [AppService, TestConsumer],
 })
 export class AppModule {}

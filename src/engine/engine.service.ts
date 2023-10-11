@@ -6,7 +6,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { TaskStatus } from './tasks';
+import { TaskStatusType } from './tasks';
 import { LogObject } from './logger';
 
 @Injectable()
@@ -22,7 +22,7 @@ export class EngineService {
   async updateTaskStatus(
     workflowRuntimeId: string,
     currentTaskId: string,
-    newStatus: TaskStatus,
+    newStatus: TaskStatusType,
   ) {
     return await this.runtimeCollection.updateOne(
       {

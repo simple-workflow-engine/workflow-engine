@@ -7,6 +7,7 @@ import { Definition, DefinitionDocument } from './definition.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { safeAsync } from '@/lib/utils/safe';
 import { Model } from 'mongoose';
+import { AddWorkflowDto } from './dto/add-workflow.dto';
 
 @Injectable()
 export class DefinitionService {
@@ -49,5 +50,40 @@ export class DefinitionService {
     }
 
     return workflowDefinitionsResult.data;
+  }
+
+  async addWorkflow(body: AddWorkflowDto) {
+    const createdWorkflowDefinitionResult = await safeAsync(
+      this.definitionCollection.create([
+        {
+          name: body.workflowData.name,
+          description: body.workflowData.description,
+          global: body.workflowData.global,
+          status: body.workflowData.status,
+          tasks: body.workflowData.tasks,
+          ...(body?.ui && {
+            uiObject: {
+              [body.key]: body.ui,
+            },
+          }),
+        },
+      ]),
+    );
+
+    if (createdWorkflowDefinitionResult.success === false) {
+      this.logger.error(`Workflow Definition create failed`);
+      this.logger.error(createdWorkflowDefinitionResult.error);
+      throw new InternalServerErrorException({
+        message: 'Internal Server Error',
+        error: `Workflow Definition create failed`,
+        statusCode: 500,
+      });
+    }
+
+    return {
+      message: 'Workflow Definition created successfully',
+      statusCode: 201,
+      data: { success: !!createdWorkflowDefinitionResult.data },
+    };
   }
 }
