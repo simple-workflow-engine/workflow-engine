@@ -22,7 +22,7 @@ export class Definition {
     type: String,
     required: true,
   })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: 'Description',
@@ -31,7 +31,7 @@ export class Definition {
     type: String,
     required: true,
   })
-  description: string;
+  description!: string;
 
   @ApiProperty({
     description: 'Tasks List',
@@ -42,7 +42,7 @@ export class Definition {
     required: true,
     default: [],
   })
-  tasks: Task[];
+  tasks!: Task[];
 
   @ApiProperty({
     description: 'Global Object',
@@ -67,7 +67,7 @@ export class Definition {
     enum: DefinitionStatusEnum,
     default: 'active',
   })
-  status: DefinitionStatusType;
+  status!: DefinitionStatusType;
 
   @ApiProperty({
     type: Object,

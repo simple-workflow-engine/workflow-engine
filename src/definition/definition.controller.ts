@@ -1,25 +1,36 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
   ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { DefinitionService } from './definition.service';
 import { AuthGuard } from '@nestjs/passport';
-import { AddWorkflowDto } from './dto/add-workflow.dto';
+import { AddDefinitionDto } from './dto/add-workflow.dto';
 import { Definition } from './definition.schema';
+import { EditDefinitionDto } from './dto/edit-definition.dto';
 
 @ApiTags('Definition')
 @Controller('definition')
 export class DefinitionController {
   constructor(private definitionService: DefinitionService) {}
 
-  @Get('/')
+  @Get('/list')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('jwt')
   @ApiOperation({
@@ -39,15 +50,15 @@ export class DefinitionController {
     return this.definitionService.definitionList();
   }
 
-  @Post('/add-workflow')
+  @Post('/create')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('jwt')
   @ApiConsumes('application/json')
   @ApiBody({
     schema: {
-      title: AddWorkflowDto.name,
+      title: AddDefinitionDto.name,
     },
-    type: AddWorkflowDto,
+    type: AddDefinitionDto,
     required: true,
   })
   @ApiOperation({
@@ -61,7 +72,93 @@ export class DefinitionController {
     },
   })
   @ApiInternalServerErrorResponse()
-  public async addWorkflow(@Body() body: AddWorkflowDto) {
-    return this.definitionService.addWorkflow(body);
+  public async addWorkflowDefinition(@Body() body: AddDefinitionDto) {
+    return this.definitionService.createDefinition(body);
+  }
+
+  @Put('/edit/:id')
+  @ApiParam({
+    type: String,
+    name: 'id',
+    description: 'Definition Id',
+    required: true,
+    schema: {
+      title: 'id',
+    },
+  })
+  @ApiOperation({
+    description: 'It will update definition in database',
+    summary: 'Workflow Definition Edit',
+  })
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('jwt')
+  @ApiConsumes('application/json')
+  @ApiInternalServerErrorResponse()
+  @ApiBody({
+    schema: {
+      title: EditDefinitionDto.name,
+    },
+    type: EditDefinitionDto,
+    required: true,
+  })
+  public async edit(@Param('id') id: string, @Body() body: EditDefinitionDto) {
+    return this.definitionService.editDefinition(id, body);
+  }
+
+  @Get('/:id/detail')
+  @ApiParam({
+    type: String,
+    name: 'id',
+    description: 'Definition Id',
+    required: true,
+    schema: {
+      title: 'id',
+    },
+  })
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('jwt')
+  @ApiInternalServerErrorResponse()
+  @ApiNotFoundResponse()
+  @ApiOkResponse({
+    type: Definition,
+    schema: {
+      title: 'DefinitionDetail',
+    },
+  })
+  @ApiOperation({
+    description:
+      'It will return definition document with all corelated runtime documents also',
+    summary: 'Workflow Definition Detail',
+  })
+  public async getDefinitionDetail(@Param('id') id: string) {
+    return this.definitionService.definitionDetail(id);
+  }
+
+  @Get('/:id')
+  @ApiParam({
+    type: String,
+    name: 'id',
+    description: 'Definition Id',
+    required: true,
+    schema: {
+      title: 'id',
+    },
+  })
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('jwt')
+  @ApiInternalServerErrorResponse()
+  @ApiNotFoundResponse()
+  @ApiOkResponse({
+    type: Definition,
+    schema: {
+      title: 'Definition',
+    },
+  })
+  @ApiOperation({
+    description: 'It will return definition document',
+    summary: 'Workflow Definition',
+  })
+  public async getDefinition(@Param('id') id: string) {
+    return this.definitionService.getDefinition(id);
   }
 }

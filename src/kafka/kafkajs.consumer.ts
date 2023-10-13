@@ -22,8 +22,26 @@ export class KafkajsConsumer implements IConsumer {
     private readonly dlqService: Model<DLQ>,
     config: ConsumerConfig,
     broker: string,
+    auth?: {
+      username: string;
+      password: string;
+    },
   ) {
-    this.kafka = new Kafka({ brokers: [broker] });
+    this.kafka = new Kafka(
+      auth
+        ? {
+            brokers: [broker],
+            sasl: {
+              mechanism: 'scram-sha-256',
+              username: auth.username,
+              password: auth.password,
+            },
+            ssl: true,
+          }
+        : {
+            brokers: [broker],
+          },
+    );
     this.consumer = this.kafka.consumer(config);
     this.logger = new Logger(`${topic.topics}-${config.groupId}`);
   }
@@ -55,7 +73,7 @@ export class KafkajsConsumer implements IConsumer {
 
   private async addMessageToDlq(message: KafkaMessage) {
     await this.dlqService.create({
-      value: message.value.toString(),
+      value: message.value?.toString(),
       topics: this.topic.topics,
     });
   }

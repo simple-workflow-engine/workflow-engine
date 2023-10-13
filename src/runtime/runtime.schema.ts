@@ -3,11 +3,14 @@ import mongoose, { HydratedDocument } from 'mongoose';
 import { Definition } from '../definition/definition.schema';
 import { LogObject } from '@/engine/logger';
 
-export enum RuntimeStatus {
-  'pending' = 'pending',
-  'completed' = 'completed',
-  'failed' = 'failed',
-}
+export const RuntimeStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  failed: 'failed',
+} as const;
+
+export type RuntimeStatusType = keyof typeof RuntimeStatus;
+export const RuntimeStatusEnum = Object.keys(RuntimeStatus);
 
 @Schema({
   timestamps: true,
@@ -33,28 +36,28 @@ export class Runtime {
     enum: RuntimeStatus,
     default: RuntimeStatus.pending,
   })
-  workflowStatus: RuntimeStatus;
+  workflowStatus!: RuntimeStatusType;
 
   @Prop({
     type: Array,
     required: true,
     default: [],
   })
-  tasks: any[];
+  tasks!: any[];
 
   @Prop({
     type: Array,
     required: true,
     default: [],
   })
-  logs: Array<LogObject>;
+  logs!: Array<LogObject>;
 
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Definition',
     required: true,
   })
-  workflowDefinitionId: Definition;
+  workflowDefinitionId!: Definition;
 }
 
 export type RuntimeDocument = HydratedDocument<

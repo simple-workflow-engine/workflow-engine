@@ -2,12 +2,15 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { Definition, DefinitionDocument } from './definition.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { safeAsync } from '@/lib/utils/safe';
-import { Model } from 'mongoose';
-import { AddWorkflowDto } from './dto/add-workflow.dto';
+import { Model, Types } from 'mongoose';
+import { AddDefinitionDto } from './dto/add-workflow.dto';
+import { EditDefinitionDto } from './dto/edit-definition.dto';
+import { RuntimeDocument } from '@/runtime/runtime.schema';
 
 @Injectable()
 export class DefinitionService {
@@ -52,7 +55,7 @@ export class DefinitionService {
     return workflowDefinitionsResult.data;
   }
 
-  async addWorkflow(body: AddWorkflowDto) {
+  async createDefinition(body: AddDefinitionDto) {
     const createdWorkflowDefinitionResult = await safeAsync(
       this.definitionCollection.create([
         {
@@ -84,6 +87,155 @@ export class DefinitionService {
       message: 'Workflow Definition created successfully',
       statusCode: 201,
       data: { success: !!createdWorkflowDefinitionResult.data },
+    };
+  }
+
+  async editDefinition(id: string, body: EditDefinitionDto) {
+    const updateResult = await safeAsync(
+      this.definitionCollection.updateOne(
+        {
+          _id: id,
+        },
+        {
+          name: body.workflowData.name,
+          description: body.workflowData.description,
+          global: body.workflowData.global,
+          status: body.workflowData.status,
+          tasks: body.workflowData.tasks,
+          ...(body?.ui && {
+            uiObject: {
+              [body.key]: body.ui,
+            },
+          }),
+        },
+      ),
+    );
+
+    if (updateResult.success === false) {
+      this.logger.error(`Workflow Definition updateOne failed for ${id}`);
+      this.logger.error(updateResult.error);
+      throw new InternalServerErrorException({
+        message: 'Internal Server Error',
+        error: `Workflow Definition updateOne failed for ${id}`,
+        statusCode: 500,
+      });
+    }
+
+    return {
+      message: 'Workflow Definition updated successfully',
+      statusCode: 200,
+      data: { success: !!updateResult.data },
+    };
+  }
+
+  async definitionDetail(id: string) {
+    const detailAggregateResult = await safeAsync(
+      this.definitionCollection.aggregate<
+        Pick<
+          DefinitionDocument,
+          '_id' | 'name' | 'description' | 'status' | 'createdAt' | 'updatedAt'
+        > & {
+          runtimes: Array<
+            Pick<
+              RuntimeDocument,
+              '_id' | 'workflowStatus' | 'createdAt' | 'updatedAt'
+            >
+          >;
+        }
+      >([
+        {
+          $match: {
+            _id: new Types.ObjectId(id),
+          },
+        },
+        {
+          $lookup: {
+            from: 'workflowruntimes',
+            localField: '_id',
+            foreignField: 'workflowDefinitionId',
+            as: 'runtimes',
+            pipeline: [
+              {
+                $sort: {
+                  createdAt: -1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            description: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            'runtimes._id': 1,
+            'runtimes.workflowStatus': 1,
+            'runtimes.createdAt': 1,
+            'runtimes.updatedAt': 1,
+          },
+        },
+      ]),
+    );
+
+    if (detailAggregateResult.success === false) {
+      this.logger.error(
+        `WorkflowDefinition detail result aggregate failed for ${id}`,
+      );
+      this.logger.error(detailAggregateResult.error);
+
+      throw new InternalServerErrorException({
+        error: `WorkflowDefinition detail result aggregate failed for ${id}`,
+        message: 'Internal Server Error',
+        statusCode: 500,
+      });
+    }
+
+    const workflowDefinition = detailAggregateResult?.data?.at(0);
+    if (!workflowDefinition) {
+      throw new NotFoundException({
+        message: 'Not Found',
+        error: `Can not find WorkflowDefinition for ${id}`,
+        statusCode: 404,
+      });
+    }
+
+    return {
+      data: workflowDefinition,
+      message: 'Workflow detail fetched successfullt',
+      statusCode: 200,
+    };
+  }
+
+  async getDefinition(id: string) {
+    const workflowDetailResult = await safeAsync(
+      this.definitionCollection.findById(id),
+    );
+
+    if (workflowDetailResult.success === false) {
+      this.logger.error(`WorkflowDefinition findById failed for ${id}`);
+      this.logger.error(workflowDetailResult.error);
+      throw new InternalServerErrorException({
+        error: `WorkflowDefinition findById failed for ${id}`,
+        message: 'Internal Server Error',
+        statusCode: 500,
+      });
+    }
+
+    if (!workflowDetailResult.data) {
+      throw new NotFoundException({
+        error: `Can not found WorkflowDefinition for ${id}`,
+        message: 'Not found',
+        statusCode: 404,
+      });
+    }
+
+    return {
+      message: 'Workflow Definition fetched successfully',
+      data: workflowDetailResult.data,
+      statusCode: 200,
     };
   }
 }

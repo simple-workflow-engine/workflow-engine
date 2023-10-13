@@ -8,11 +8,32 @@ export class KafkajsProducer implements IProducer {
   private readonly producer: Producer;
   private readonly logger: Logger;
 
-  constructor(private readonly topic: string, broker: string) {
-    this.kafka = new Kafka({
-      brokers: [broker],
+  constructor(
+    private readonly topic: string,
+    broker: string,
+    auth?: {
+      username: string;
+      password: string;
+    },
+  ) {
+    this.kafka = new Kafka(
+      auth
+        ? {
+            brokers: [broker],
+            sasl: {
+              mechanism: 'scram-sha-256',
+              username: auth.username,
+              password: auth.password,
+            },
+            ssl: true,
+          }
+        : {
+            brokers: [broker],
+          },
+    );
+    this.producer = this.kafka.producer({
+      allowAutoTopicCreation: true,
     });
-    this.producer = this.kafka.producer();
     this.logger = new Logger(topic);
   }
 

@@ -7,15 +7,18 @@ import {
 import { TaskStatus, type Task, TaskType } from '../tasks/index';
 
 import { FunctionProcessor } from './function';
-import axios, { AxiosError } from 'axios';
 
 import { safeAsync } from '@lib/utils/safe';
 import { GuardProcessor } from './guard';
 import { WaitProcessor } from './wait';
 
 import { EngineService } from '../engine.service';
-import { ConfigService } from '@nestjs/config';
-import { RuntimeDocument, RuntimeStatus } from '@/runtime/runtime.schema';
+import {
+  RuntimeDocument,
+  RuntimeStatus,
+  RuntimeStatusType,
+} from '@/runtime/runtime.schema';
+import { EngineTransport } from '../engine.transport';
 
 @Injectable()
 export class Processor {
@@ -23,7 +26,7 @@ export class Processor {
 
   constructor(
     private engineService: EngineService,
-    private configService: ConfigService,
+    private transportService: EngineTransport,
   ) {}
 
   async processTask(workflowRuntimeId: string, taskName: string) {
@@ -98,7 +101,9 @@ export class Processor {
 
     const global = workflowRuntimeData?.global ?? {};
 
-    const resultMap = structuredClone(workflowRuntimeData.workflowResults);
+    const resultMap = structuredClone(
+      workflowRuntimeData.workflowResults ?? {},
+    );
 
     const functionProcessor = new FunctionProcessor();
     const processResult = await safeAsync(
@@ -145,7 +150,7 @@ export class Processor {
     const updatedLogs = loggerObj.Logs;
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    let updatedWorkflowStatus: RuntimeStatusType = RuntimeStatus.pending;
     const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
@@ -190,20 +195,9 @@ export class Processor {
         currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
     );
     nextTasks.forEach((task) => {
-      axios({
-        method: 'POST',
-        baseURL: this.configService.get<string>('DEPLOYED_URL'),
-        url: '/workflow/process',
-        data: {
-          workflowRuntimeId: workflowRuntimeData._id.toString(),
-          taskName: task.name,
-        },
-      }).catch((error) => {
-        if (error instanceof AxiosError) {
-          this.logChild.error(error?.response?.data);
-        } else {
-          this.logChild.error(error);
-        }
+      this.transportService.processNextTask({
+        workflowRuntimeId: workflowRuntimeData._id.toString(),
+        taskName: task.name,
       });
     });
 
@@ -224,7 +218,9 @@ export class Processor {
 
     const global = workflowRuntimeData?.global ?? {};
 
-    const resultMap = structuredClone(workflowRuntimeData.workflowResults);
+    const resultMap = structuredClone(
+      workflowRuntimeData.workflowResults ?? {},
+    );
 
     const guardProcessor = new GuardProcessor();
     const processResult = await safeAsync(
@@ -265,7 +261,7 @@ export class Processor {
     const updatedLogs = loggerObj.Logs;
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    let updatedWorkflowStatus: RuntimeStatusType = RuntimeStatus.pending;
     const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
@@ -311,20 +307,9 @@ export class Processor {
           currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
       );
       nextTasks.forEach((task) => {
-        axios({
-          method: 'POST',
-          baseURL: this.configService.get<string>('DEPLOYED_URL'),
-          url: '/workflow/process',
-          data: {
-            workflowRuntimeId: workflowRuntimeData._id.toString(),
-            taskName: task.name,
-          },
-        }).catch((error) => {
-          if (error instanceof AxiosError) {
-            this.logChild.error(error?.response?.data);
-          } else {
-            this.logChild.error(error);
-          }
+        this.transportService.processNextTask({
+          workflowRuntimeId: workflowRuntimeData._id.toString(),
+          taskName: task.name,
         });
       });
     }
@@ -351,7 +336,7 @@ export class Processor {
     };
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    let updatedWorkflowStatus: RuntimeStatusType = RuntimeStatus.pending;
     const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
@@ -389,20 +374,9 @@ export class Processor {
         currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
     );
     nextTasks.forEach((task) => {
-      axios({
-        method: 'POST',
-        baseURL: this.configService.get<string>('DEPLOYED_URL'),
-        url: '/workflow/process',
-        data: {
-          workflowRuntimeId: workflowRuntimeData._id.toString(),
-          taskName: task.name,
-        },
-      }).catch((error) => {
-        if (error instanceof AxiosError) {
-          this.logChild.error(error?.response?.data);
-        } else {
-          this.logChild.error(error);
-        }
+      this.transportService.processNextTask({
+        workflowRuntimeId: workflowRuntimeData._id.toString(),
+        taskName: task.name,
       });
     });
 
@@ -428,7 +402,7 @@ export class Processor {
     };
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    let updatedWorkflowStatus: RuntimeStatusType = RuntimeStatus.pending;
     const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
@@ -516,7 +490,7 @@ export class Processor {
     };
 
     // Updated Workflow Status
-    let updatedWorkflowStatus: RuntimeStatus = RuntimeStatus.pending;
+    let updatedWorkflowStatus: RuntimeStatusType = RuntimeStatus.pending;
     const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
     const allCompleted = endTask?.status === 'completed';
     if (allCompleted) {
@@ -555,20 +529,9 @@ export class Processor {
           currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
       );
       nextTasks.forEach((task) => {
-        axios({
-          method: 'POST',
-          baseURL: this.configService.get<string>('DEPLOYED_URL'),
-          url: '/workflow/process',
-          data: {
-            workflowRuntimeId: workflowRuntimeData._id.toString(),
-            taskName: task.name,
-          },
-        }).catch((error) => {
-          if (error instanceof AxiosError) {
-            this.logChild.error(error?.response?.data);
-          } else {
-            this.logChild.error(error);
-          }
+        this.transportService.processNextTask({
+          workflowRuntimeId: workflowRuntimeData._id.toString(),
+          taskName: task.name,
         });
       });
     }

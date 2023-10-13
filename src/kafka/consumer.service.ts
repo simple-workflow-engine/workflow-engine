@@ -23,11 +23,18 @@ export class ConsumerService implements OnApplicationShutdown {
   ) {}
 
   async consume({ topic, config, onMessage }: KafkajsConsumerOptions) {
+    const broker = this.configService.get<string>('KAFKA_BROKER') ?? '';
     const consumer = new KafkajsConsumer(
       topic,
       this.dlqService,
       config,
-      this.configService.get('KAFKA_BROKER'),
+      broker,
+      broker.includes('localhost')
+        ? undefined
+        : {
+            username: this.configService.get<string>('KAFKA_USERNAME') ?? '',
+            password: this.configService.get<string>('KAFKA_PASSWORD') ?? '',
+          },
     );
     await consumer.connect();
     await consumer.consume(onMessage);

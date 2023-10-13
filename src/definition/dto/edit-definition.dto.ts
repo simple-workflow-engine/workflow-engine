@@ -125,7 +125,7 @@ class WorkflowData {
   tasks!: WorkflowTask[];
 }
 
-export class AddDefinitionDto {
+export class EditDefinitionDto {
   @ApiProperty({
     name: 'workflowData',
     type: WorkflowData,

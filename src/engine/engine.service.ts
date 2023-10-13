@@ -1,9 +1,9 @@
 import {
   Runtime,
   RuntimeDocument,
-  RuntimeStatus,
+  RuntimeStatusType,
 } from '@/runtime/runtime.schema';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { TaskStatusType } from './tasks';
@@ -11,6 +11,8 @@ import { LogObject } from './logger';
 
 @Injectable()
 export class EngineService {
+  private logger = new Logger(EngineService.name);
+
   constructor(
     @InjectModel(Runtime.name) private runtimeCollection: Model<Runtime>,
   ) {}
@@ -54,7 +56,7 @@ export class EngineService {
 
   async updateWorkflowStatus(
     workflowRuntimeId: string,
-    newStatus: RuntimeStatus,
+    newStatus: RuntimeStatusType,
   ) {
     return await this.runtimeCollection.updateOne(
       {

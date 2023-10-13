@@ -10,12 +10,12 @@ export class DLQ {
   @Prop({
     type: String,
   })
-  value: string;
+  value?: string;
 
   @Prop({
     type: [String],
   })
-  topics: string[];
+  topics?: string[];
 }
 
 export const DLQSchema = SchemaFactory.createForClass(DLQ);
