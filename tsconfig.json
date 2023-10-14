@@ -1,22 +1,25 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
-    "baseUrl": ".",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "es2017",
     "sourceMap": true,
-    "strict": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
     "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "strict": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@models/*": ["./src/models/*"],
-      "@engine/*": ["./src/engine/*"],
-      "@lib/*": ["./src/lib/*"],
-      "@api/*": ["./src/api/*"]
+      "@/*": ["src/*"],
+      "@lib/*": ["src/lib/*"]
     }
   }
 }

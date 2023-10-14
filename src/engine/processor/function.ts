@@ -1,178 +1,89 @@
-import type { Task } from "../../engine/tasks/index";
-import { asyncHandler } from "@/lib/utils/asyncHandler";
-import ism from "isolated-vm";
-import logger from "@/lib/utils/logger";
-import type { Logger } from "../logger";
-import axios from "axios";
+import type { Task } from '../../engine/tasks/index';
+import { safeAsync } from '@lib/utils/safe';
+import { performance } from 'node:perf_hooks';
+import { createContext, runInNewContext, measureMemory } from 'vm';
+
+import { LogSeverity, type WorkflowLogger } from '../logger';
+import axios from 'axios';
+import { ProcessorProcess } from '../engine.interface';
 
 const httpClient = async (...args: any[]) => {
-  //@ts-ignore-next-line
   const result: any = await axios.apply(this, args);
   return result.data;
 };
 
-export class FunctionProcessor {
-  private logChild = logger.child({
-    name: FunctionProcessor.name,
-  });
-
-  constructor() {}
-
+export class FunctionProcessor implements ProcessorProcess {
   async process(
-    params: {
-      [key: string]: any;
-    },
-    global: {
-      [key: string]: any;
-    },
-    loggerObj: Logger,
+    params: Record<string, any>,
+    global: Record<string, any>,
+    loggerObj: WorkflowLogger,
     results: Record<string, any>,
-    task: Task
-  ): Promise<
-    | [
-        {
-          response: Record<string, any>;
-        },
-        null
-      ]
-    | [
-        null,
-        {
-          message: string;
-          error?: string;
-          stackTrace?: string;
-        }
-      ]
-  > {
-    const getWorkflowParams = () => params;
-    const getWorkflowGlobal = () => global;
-    const getWorkflowResults = () => results;
+    task: Task,
+  ): Promise<{
+    response: unknown;
+    /**
+     * In Seconds
+     */
+    timeTaken: number;
+    /**
+     * In MB
+     */
+    memoryUsage: number;
+  }> {
+    const tick = performance.now();
+    const context = createContext({
+      console: {
+        log: (...args: any[]) => loggerObj.log(LogSeverity.log, ...args),
+        info: (...args: any[]) => loggerObj.log(LogSeverity.info, ...args),
+        warn: (...args: any[]) => loggerObj.log(LogSeverity.warn, ...args),
+        error: (...args: any[]) => loggerObj.log(LogSeverity.error, ...args),
+      },
+      axios: httpClient,
+      workflowParams: params,
+      workflowGlobal: global,
+      workflowResults: results,
+    });
 
-    const logs: string[] = [];
-    const addLog = (...message: any[]) => {
-      this.logChild.info(message);
-      logs.push([new Date().toJSON(), task.name, JSON.stringify(message)].join(" : "));
-    };
-
-    const ismObj = new ism.Isolate();
-
-    const context = await ismObj.createContext();
-
-    const jail = context.global;
-
-    const jailSetResult = await asyncHandler(
-      Promise.all([
-        context.evalClosure(
-          `
-          {
-            axios = function (...args) {
-                return $0.apply(undefined, args, { arguments: { copy: true }, result: { promise: true, copy: true } });
-            };
-          }
-        `,
-          [httpClient],
-          { arguments: { reference: true } }
-        ),
-        jail.set("global", jail.derefInto()),
-        jail.set("getWorkflowParams", getWorkflowParams),
-        jail.set("getWorkflowGlobal", getWorkflowGlobal),
-        jail.set("getWorkflowResults", getWorkflowResults),
-        jail.set("logger", addLog),
-      ])
-    );
-
-    if (!jailSetResult.success) {
-      this.logChild.error(`isolate-vm failed to set global`);
-      this.logChild.error(jailSetResult.error);
-    }
-
-    if (!task?.exec) {
-      return [
-        null,
-        {
-          message: "Exec not found",
-          error: `No function script found`,
-          stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
-        },
-      ];
-    }
-    const evalResult = await asyncHandler<string>(
-      await context.eval(
+    const evalResult = await safeAsync(
+      await runInNewContext(
         `
     ${task.exec}
     handler();
     `,
-        {
-          promise: true,
-        }
-      )
+        context,
+        {},
+      ),
     );
-    ismObj.dispose();
 
-    loggerObj.addLogs(logs);
-
-    if (!evalResult.success) {
-      this.logChild.error(`Context Eval failed for ${task.name}`);
-      this.logChild.error(evalResult.error);
-
-      if (evalResult.error instanceof Error) {
-        return [
-          null,
-          {
-            message: evalResult.error?.message,
-            stackTrace: evalResult.error?.stack,
-            error: evalResult.error?.name,
-          },
-        ];
-      }
-      return [
-        null,
-        {
-          message: "Task script have runtime error",
-          stackTrace: JSON.stringify(evalResult.error),
-        },
-      ];
+    if (evalResult.success === false) {
+      throw evalResult.error;
     }
 
-    if (!evalResult) {
-      return [
-        {
-          response: {},
-        },
-        null,
-      ];
-    }
+    const memoryResult = await safeAsync(
+      measureMemory({ mode: 'summary', context: context }).then((result) => {
+        console.log(context?.workflowParams);
+        return result.total?.jsMemoryEstimate;
+      }),
+    );
 
-    try {
-      const resultData = JSON.parse(evalResult.result);
-      return [
-        {
-          response: resultData,
-        },
-        null,
-      ];
-    } catch (error) {
-      this.logChild.info(evalResult.result);
-      this.logChild.error(`Result JSON parse failed for ${task.name}`);
-      this.logChild.error(error);
-      if (error instanceof Error) {
-        return [
-          null,
-          {
-            message: error.message,
-            stackTrace: error?.stack,
-            error: error.name,
-          },
-        ];
-      }
-      return [
-        null,
-        {
-          message: "Task result parse failed",
-          stackTrace: `Task id: ${task.id}, Task name: ${task.name}`,
-          error: "JSON.stringify failed",
-        },
-      ];
+    const memoryUsage =
+      (memoryResult.success ? memoryResult.data ?? 0 : 0) / 1024 / 1024;
+
+    const tock = performance.now();
+
+    const timeTaken = (tock - tick) / 1000;
+
+    if (!evalResult.data) {
+      return {
+        response: {},
+        memoryUsage,
+        timeTaken,
+      };
     }
+    return {
+      response: evalResult.data,
+      memoryUsage,
+      timeTaken,
+    };
   }
 }
