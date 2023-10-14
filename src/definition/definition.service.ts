@@ -21,7 +21,7 @@ export class DefinitionService {
     private definitionCollection: Model<Definition>,
   ) {}
 
-  async definitionList() {
+  async definitionList(userId: string) {
     const workflowDefinitionsResult = await safeAsync(
       this.definitionCollection.find<
         Pick<
@@ -29,7 +29,9 @@ export class DefinitionService {
           'name' | '_id' | 'status' | 'description' | 'createdAt' | 'updatedAt'
         >
       >(
-        {},
+        {
+          userId,
+        },
         {
           name: 1,
           _id: 1,
@@ -59,7 +61,7 @@ export class DefinitionService {
     };
   }
 
-  async createDefinition(body: AddDefinitionDto) {
+  async createDefinition(body: AddDefinitionDto, userId: string) {
     const createdWorkflowDefinitionResult = await safeAsync(
       this.definitionCollection.create([
         {
@@ -73,6 +75,7 @@ export class DefinitionService {
               [body.key]: body.ui,
             },
           }),
+          userId,
         },
       ]),
     );
@@ -94,11 +97,12 @@ export class DefinitionService {
     };
   }
 
-  async editDefinition(id: string, body: EditDefinitionDto) {
+  async editDefinition(id: string, body: EditDefinitionDto, userId: string) {
     const updateResult = await safeAsync(
       this.definitionCollection.updateOne(
         {
           _id: id,
+          userId,
         },
         {
           name: body.workflowData.name,
@@ -132,7 +136,7 @@ export class DefinitionService {
     };
   }
 
-  async definitionDetail(id: string) {
+  async definitionDetail(id: string, userId: string) {
     const detailAggregateResult = await safeAsync(
       this.definitionCollection.aggregate<
         Pick<
@@ -150,6 +154,7 @@ export class DefinitionService {
         {
           $match: {
             _id: new Types.ObjectId(id),
+            userId,
           },
         },
         {
@@ -213,9 +218,9 @@ export class DefinitionService {
     };
   }
 
-  async getDefinition(id: string) {
+  async getDefinition(id: string, userId: string) {
     const workflowDetailResult = await safeAsync(
-      this.definitionCollection.findById(id),
+      this.definitionCollection.findOne({ _id: id, userId }),
     );
 
     if (workflowDetailResult.success === false) {

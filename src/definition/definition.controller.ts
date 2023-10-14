@@ -5,6 +5,8 @@ import {
   Param,
   Post,
   Put,
+  Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -24,6 +26,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { AddDefinitionDto } from './dto/add-workflow.dto';
 import { Definition } from './definition.schema';
 import { EditDefinitionDto } from './dto/edit-definition.dto';
+import { Request } from 'express';
 
 @ApiTags('Definition')
 @Controller('definition')
@@ -46,8 +49,11 @@ export class DefinitionController {
     },
   })
   @ApiInternalServerErrorResponse()
-  public async definitionList() {
-    return this.definitionService.definitionList();
+  public async definitionList(@Req() req: Request) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.definitionService.definitionList(req.user.sub);
   }
 
   @Post('/create')
@@ -72,8 +78,14 @@ export class DefinitionController {
     },
   })
   @ApiInternalServerErrorResponse()
-  public async addWorkflowDefinition(@Body() body: AddDefinitionDto) {
-    return this.definitionService.createDefinition(body);
+  public async addWorkflowDefinition(
+    @Body() body: AddDefinitionDto,
+    @Req() req: Request,
+  ) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.definitionService.createDefinition(body, req?.user?.sub);
   }
 
   @Put('/edit/:id')
@@ -101,8 +113,15 @@ export class DefinitionController {
     type: EditDefinitionDto,
     required: true,
   })
-  public async edit(@Param('id') id: string, @Body() body: EditDefinitionDto) {
-    return this.definitionService.editDefinition(id, body);
+  public async edit(
+    @Param('id') id: string,
+    @Body() body: EditDefinitionDto,
+    @Req() req: Request,
+  ) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.definitionService.editDefinition(id, body, req?.user?.sub);
   }
 
   @Get('/:id/detail')
@@ -130,8 +149,14 @@ export class DefinitionController {
       'It will return definition document with all corelated runtime documents also',
     summary: 'Workflow Definition Detail',
   })
-  public async getDefinitionDetail(@Param('id') id: string) {
-    return this.definitionService.definitionDetail(id);
+  public async getDefinitionDetail(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.definitionService.definitionDetail(id, req?.user?.sub);
   }
 
   @Get('/:id')
@@ -158,7 +183,10 @@ export class DefinitionController {
     description: 'It will return definition document',
     summary: 'Workflow Definition',
   })
-  public async getDefinition(@Param('id') id: string) {
-    return this.definitionService.getDefinition(id);
+  public async getDefinition(@Param('id') id: string, @Req() req: Request) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.definitionService.getDefinition(id, req?.user?.sub);
   }
 }

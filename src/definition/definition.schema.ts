@@ -78,6 +78,16 @@ export class Definition {
     required: false,
   })
   uiObject?: Record<string, any>;
+
+  @ApiProperty({
+    type: String,
+    description: 'User Id',
+  })
+  @Prop({
+    type: String,
+    required: true,
+  })
+  userId!: string;
 }
 
 export type DefinitionDocument = HydratedDocument<

@@ -16,7 +16,6 @@ export class BasicAuthStrategy extends PassportStrategy(
   }
 
   validate(req: Request, username: string, password: string) {
-    console.log('basic');
     const apiKey = this.configService.get<string>('API_KEY') ?? '';
     if (username === 'workflow' && password === apiKey) {
       return true;

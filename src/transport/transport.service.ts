@@ -26,7 +26,7 @@ export class TransportService {
     private processor: Processor,
   ) {}
 
-  async startWorkflow(body: StartWorkflowDto) {
+  async startWorkflow(body: StartWorkflowDto, userId: string) {
     const definitionResult = await safeAsync(
       this.definitionCollection.findById(body.workflowDefinitionId),
     );
@@ -68,6 +68,7 @@ export class TransportService {
           ...(body?.globalParams && { ...body?.globalParams }),
         },
         logs: [],
+        userId,
       }),
     );
 

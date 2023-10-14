@@ -1,7 +1,7 @@
 import { safeAsync } from '@lib/utils/safe';
 import type { Task } from '../tasks';
 import { performance } from 'node:perf_hooks';
-import vm from 'vm';
+import { createContext, runInNewContext, measureMemory } from 'vm';
 import axios from 'axios';
 import { LogSeverity, type WorkflowLogger } from '../logger';
 import { ProcessorProcess } from '../engine.interface';
@@ -30,7 +30,7 @@ export class GuardProcessor implements ProcessorProcess {
     memoryUsage: number;
   }> {
     const tick = performance.now();
-    const context = vm.createContext({
+    const context = createContext({
       console: {
         log: (...args: any[]) => loggerObj.log(LogSeverity.log, ...args),
         info: (...args: any[]) => loggerObj.log(LogSeverity.info, ...args),
@@ -44,7 +44,7 @@ export class GuardProcessor implements ProcessorProcess {
     });
 
     const evalResult = await safeAsync(
-      await vm.runInNewContext(
+      await runInNewContext(
         `
     ${task.exec}
     handler();
@@ -59,8 +59,8 @@ export class GuardProcessor implements ProcessorProcess {
     }
 
     const memoryResult = await safeAsync(
-      vm.measureMemory({ mode: 'summary', context: context }).then((result) => {
-        console.log(context?.consts);
+      measureMemory({ mode: 'summary', context: context }).then((result) => {
+        console.log(context?.workflowParams);
         return result.total?.jsMemoryEstimate;
       }),
     );

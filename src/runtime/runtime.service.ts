@@ -18,7 +18,7 @@ export class RuntimeService {
     @InjectModel(Runtime.name) private runtimeCollection: Model<Runtime>,
   ) {}
 
-  async getRuntimeDetail(id: string) {
+  async getRuntimeDetail(id: string, userId: string) {
     const runtimeResult = await safeAsync(
       this.runtimeCollection.aggregate<
         Pick<
@@ -40,6 +40,7 @@ export class RuntimeService {
         {
           $match: {
             _id: new Types.ObjectId(id),
+            userId,
           },
         },
         {

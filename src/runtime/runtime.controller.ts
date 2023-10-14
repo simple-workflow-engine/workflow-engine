@@ -1,4 +1,11 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiInternalServerErrorResponse,
@@ -11,6 +18,7 @@ import {
 import { RuntimeService } from './runtime.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Runtime } from './runtime.schema';
+import { Request } from 'express';
 
 @Controller('runtime')
 @ApiTags('Runtime')
@@ -42,7 +50,10 @@ export class RuntimeController {
       title: 'id',
     },
   })
-  public async getRuntimeDetail(@Param('id') id: string) {
-    return this.runtimeService.getRuntimeDetail(id);
+  public async getRuntimeDetail(@Param('id') id: string, @Req() req: Request) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.runtimeService.getRuntimeDetail(id, req?.user?.sub);
   }
 }

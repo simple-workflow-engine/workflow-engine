@@ -1,4 +1,11 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { TransportService } from './transport.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -11,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { StartWorkflowDto } from './dto/start-workflow.dto';
 import { ProcessWorkflowDto } from './dto/process-workflow.dto';
+import { Request } from 'express';
 
 @Controller('transport')
 @ApiTags('Transport')
@@ -33,8 +41,14 @@ export class TransportController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('jwt')
   @ApiConsumes('application/json')
-  public async startWorkflow(@Body() body: StartWorkflowDto) {
-    return this.transportService.startWorkflow(body);
+  public async startWorkflow(
+    @Body() body: StartWorkflowDto,
+    @Req() req: Request,
+  ) {
+    if (!req?.user?.sub) {
+      throw new UnauthorizedException();
+    }
+    return this.transportService.startWorkflow(body, req?.user?.sub);
   }
 
   @Post('/process')

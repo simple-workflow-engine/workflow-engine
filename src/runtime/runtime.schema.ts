@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { Definition } from '../definition/definition.schema';
 import { LogObject } from '@/engine/logger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export const RuntimeStatus = {
   pending: 'pending',
@@ -58,6 +59,16 @@ export class Runtime {
     required: true,
   })
   workflowDefinitionId!: Definition;
+
+  @ApiProperty({
+    type: String,
+    description: 'User Id',
+  })
+  @Prop({
+    type: String,
+    required: true,
+  })
+  userId!: string;
 }
 
 export type RuntimeDocument = HydratedDocument<
