@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsJSON, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class StartWorkflowDto {
   @ApiProperty({
@@ -18,7 +18,6 @@ export class StartWorkflowDto {
     required: false,
     description: 'Workflow GlobalParams',
   })
-  @IsJSON()
   @IsOptional()
   globalParams?: Record<string, any>;
 }

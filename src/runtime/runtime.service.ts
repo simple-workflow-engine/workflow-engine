@@ -44,7 +44,7 @@ export class RuntimeService {
         },
         {
           $lookup: {
-            from: 'workflowdefinitions',
+            from: 'definitions',
             localField: 'workflowDefinitionId',
             foreignField: '_id',
             as: 'definition',

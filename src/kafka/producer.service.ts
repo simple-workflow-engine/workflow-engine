@@ -19,10 +19,12 @@ export class ProducerService implements OnApplicationShutdown {
     let producer = this.producers.get(topic);
     if (!producer) {
       const broker = this.configService.get<string>('KAFKA_BROKER') ?? '';
+      const NODE_ENV =
+        this.configService.get<string>('NODE_ENV') ?? 'production';
       producer = new KafkajsProducer(
         topic,
         broker,
-        broker.includes('localhost')
+        NODE_ENV === 'development'
           ? undefined
           : {
               username: this.configService.get<string>('KAFKA_USERNAME') ?? '',

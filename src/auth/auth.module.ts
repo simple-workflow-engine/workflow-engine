@@ -4,12 +4,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { BasicAuthStrategy } from './basic.strategy';
 
 @Module({
-  imports: [
-    PassportModule.register({
-      defaultStrategy: ['jwt', 'basic'],
-      property: 'auth',
-    }),
-  ],
+  imports: [PassportModule],
   providers: [JwtStrategy, BasicAuthStrategy],
   exports: [PassportModule],
 })

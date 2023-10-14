@@ -4,6 +4,7 @@ import { TOPIC_NAME } from '@/transport/workflow-process.consumer';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
+import { randomUUID } from 'crypto';
 
 type AvailableTransport = 'kafka' | 'http';
 
@@ -46,7 +47,7 @@ export class EngineTransport {
         this.producerService.produce(TOPIC_NAME, {
           value: JSON.stringify(body),
           headers: {
-            'X-Idenpotent-Key': crypto.randomUUID(),
+            'X-Idenpotent-Key': randomUUID(),
             'X-Api-Key': apiKey,
           },
         }),

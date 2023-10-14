@@ -6,7 +6,6 @@ import { TaskTypeEnum, TaskTypeType } from '@/engine/tasks';
 import {
   IsArray,
   IsEnum,
-  IsJSON,
   IsNotEmpty,
   IsObject,
   IsOptional,
@@ -110,7 +109,6 @@ class WorkflowData {
       key: 'value',
     },
   })
-  @IsJSON()
   @IsOptional()
   global?: Record<string, any>;
 
@@ -155,7 +153,6 @@ export class AddDefinitionDto {
       key: 'value',
     },
   })
-  @IsJSON()
   @IsOptional()
   ui?: Record<string, any>;
 }

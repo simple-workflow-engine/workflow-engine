@@ -52,7 +52,11 @@ export class DefinitionService {
       });
     }
 
-    return workflowDefinitionsResult.data;
+    return {
+      message: 'Definition List fetched successfully',
+      data: workflowDefinitionsResult.data,
+      statusCode: 200,
+    };
   }
 
   async createDefinition(body: AddDefinitionDto) {
@@ -150,7 +154,7 @@ export class DefinitionService {
         },
         {
           $lookup: {
-            from: 'workflowruntimes',
+            from: 'runtimes',
             localField: '_id',
             foreignField: 'workflowDefinitionId',
             as: 'runtimes',
