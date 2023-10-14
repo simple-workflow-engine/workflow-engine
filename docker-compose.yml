@@ -1,14 +1,5 @@
 version: "3.8"
 
-networks:
-  workflow_engine_net:
-    name: workflow_engine_net
-    driver: bridge
-
-volumes:
-  mongo-data:
-
-
 services:
   workflow-engine:
     container_name: workflow-engine
@@ -18,19 +9,3 @@ services:
       - '8080:8080'
     env_file:
       - .env.docker
-    networks:
-      - workflow_engine_net
-    depends_on:
-      - mongodb
-
-  mongodb:
-    container_name: mongodb
-    image: mongo:latest
-    restart: unless-stopped
-    hostname: mongo
-    ports:
-      - '27017:27017'
-    volumes:
-      - 'mongo-data:/data/db'
-    networks:
-      - workflow_engine_net
