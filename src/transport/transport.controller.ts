@@ -15,10 +15,12 @@ import {
   ApiConsumes,
   ApiTags,
   ApiBasicAuth,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { StartWorkflowDto } from './dto/start-workflow.dto';
 import { ProcessWorkflowDto } from './dto/process-workflow.dto';
 import { Request } from 'express';
+import { ProcessListenDto } from './dto/process-listen.dto';
 
 @Controller('transport')
 @ApiTags('Transport')
@@ -69,5 +71,39 @@ export class TransportController {
   @ApiConsumes('application/json')
   public async processWorkflow(@Body() body: ProcessWorkflowDto) {
     return this.transportService.processWorkflow(body);
+  }
+
+  @Post('/listen')
+  @ApiBody({
+    schema: {
+      title: ProcessListenDto.name,
+    },
+    type: ProcessListenDto,
+    required: true,
+  })
+  @ApiOperation({
+    description: 'It will Process Listen Task with globalParams update',
+    summary: 'Process Listen Task',
+  })
+  @ApiHeader({
+    name: 'x-api-key',
+    required: true,
+    description: 'Listen Task Security',
+    example: 'x-api-key: abcdxc...',
+  })
+  @ApiConsumes('application/json')
+  public async processListenTask(
+    @Body() body: ProcessListenDto,
+    @Req() req: Request,
+  ) {
+    const apiKeyHeader = req.headers?.['x-api-key'];
+    const apiKey =
+      typeof apiKeyHeader === 'object' ? apiKeyHeader?.at(0) : apiKeyHeader;
+    if (!apiKey) {
+      throw new UnauthorizedException({
+        message: '`x-api-key` not found',
+      });
+    }
+    return this.transportService.processListenTask(body, apiKey);
   }
 }

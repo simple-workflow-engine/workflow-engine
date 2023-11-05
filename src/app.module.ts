@@ -9,6 +9,7 @@ import { DefinitionModule } from './definition/definition.module';
 import { RuntimeModule } from './runtime/runtime.module';
 import { TransportModule } from './transport/transport.module';
 import { EngineModule } from './engine/engine.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -22,6 +23,12 @@ import { EngineModule } from './engine/engine.module';
       }),
       inject: [ConfigService],
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     KafkaModule,
     AuthModule,
     DefinitionModule,
