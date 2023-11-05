@@ -8,12 +8,14 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { StartWorkflowDto } from './dto/start-workflow.dto';
 import { Processor } from '@/engine/processor';
 import { ProcessWorkflowDto } from './dto/process-workflow.dto';
+import { ProcessListenDto } from './dto/process-listen.dto';
 
 @Injectable()
 export class TransportService {
@@ -128,6 +130,95 @@ export class TransportService {
     return {
       statusCode: 200,
       message: 'Process workflow invoked successfully',
+      data: {
+        ok: true,
+      },
+    };
+  }
+
+  async processListenTask(body: ProcessListenDto, apiKey: string) {
+    const runtimeResult = await safeAsync(
+      this.runtimeCollection.findById(body.workflowRuntimeId),
+    );
+
+    if (runtimeResult.success === false) {
+      this.logger.error(
+        `WorkflowRuntime findById failed for ${body.workflowRuntimeId}`,
+      );
+      this.logger.error(runtimeResult.error);
+
+      throw new InternalServerErrorException({
+        message: 'Internal Server Error',
+        statusCode: 500,
+        error: `WorkflowRuntime findById failed for ${body.workflowRuntimeId}`,
+      });
+    }
+
+    if (!runtimeResult.data) {
+      throw new BadRequestException({
+        message: 'Bad Request',
+        statusCode: 400,
+        error: `Can not find WorkflowRuntime for ${body.workflowRuntimeId}`,
+      });
+    }
+
+    if (runtimeResult.data.workflowStatus === 'completed') {
+      throw new BadRequestException({
+        message: 'Bad Request',
+        statusCode: 400,
+        error: `WorkflowRuntime for ${body.workflowRuntimeId} is completed`,
+      });
+    }
+
+    const listenTask = runtimeResult.data.tasks?.find(
+      (task) => task.name === body.taskName,
+    );
+
+    if (!listenTask) {
+      throw new BadRequestException({
+        message: 'Bad Request',
+        statusCode: 400,
+        error: `Can not find Listen Task for ${body.workflowRuntimeId} and Task Name ${body.taskName}`,
+      });
+    }
+
+    if (listenTask?.status === 'completed') {
+      throw new BadRequestException({
+        message: 'Bad Request',
+        statusCode: 400,
+        error: `Listen Task for ${body.workflowRuntimeId} and Task Name ${body.taskName} is completed`,
+      });
+    }
+
+    if (listenTask?.params?.apiKey !== apiKey) {
+      throw new UnauthorizedException({
+        message: 'Unauthorized',
+      });
+    }
+
+    if (Object.keys(body?.globalParams ?? {}).length > 0) {
+      await safeAsync(
+        this.runtimeCollection.updateOne(
+          {
+            _id: runtimeResult.data._id,
+          },
+          {
+            global: {
+              ...(runtimeResult.data?.global ?? {}),
+              ...(body.globalParams ?? {}),
+            },
+          },
+        ),
+      );
+    }
+
+    safeAsync(
+      this.processor.processTask(body.workflowRuntimeId, body.taskName),
+    );
+
+    return {
+      statusCode: 200,
+      message: `Listen Task ${body.taskName} processed invoked successfully`,
       data: {
         ok: true,
       },

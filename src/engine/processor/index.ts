@@ -77,6 +77,8 @@ export class Processor {
       return this.processWaitTask(workflowRuntimeData, currentTask);
     } else if (currentTask.type === 'GUARD') {
       return this.processGuardTask(workflowRuntimeData, currentTask);
+    } else if (currentTask.type === 'LISTEN') {
+      return this.processListenTask(workflowRuntimeData, currentTask);
     } else {
       this.logChild.error(
         `Unknown Task type received: ${currentTask.type} for runtime: ${workflowRuntimeId} and taskName: ${taskName}`,
@@ -535,6 +537,78 @@ export class Processor {
         });
       });
     }
+
+    return {
+      status: 'success',
+    };
+  }
+
+  private async processListenTask(
+    workflowRuntimeData: RuntimeDocument,
+    currentTask: Task,
+  ): Promise<{
+    status: 'success' | 'failure';
+  }> {
+    if (currentTask.status === TaskStatus.completed) {
+      return {
+        status: 'success',
+      };
+    }
+
+    // Updated Task
+    const updatedTasks: Task[] = [...workflowRuntimeData.tasks];
+    const updateIndex = updatedTasks.findIndex(
+      (task) => task.id === currentTask.id,
+    );
+    updatedTasks[updateIndex] = {
+      ...updatedTasks[updateIndex],
+      status: TaskStatus.completed,
+    };
+
+    // Updated Workflow Status
+    let updatedWorkflowStatus: RuntimeStatusType = RuntimeStatus.pending;
+    const endTask = updatedTasks.find((task) => task.type === TaskType['END']);
+    const allCompleted = endTask?.status === 'completed';
+    if (allCompleted) {
+      updatedWorkflowStatus = RuntimeStatus.completed;
+    }
+
+    // Updated Runtime
+    await safeAsync(
+      this.engineService.updateWorkflowResult(
+        workflowRuntimeData._id.toString(),
+        currentTask.name,
+        {},
+      ),
+    );
+
+    if (updatedWorkflowStatus === RuntimeStatus.completed) {
+      await safeAsync(
+        this.engineService.updateWorkflowStatus(
+          workflowRuntimeData._id.toString(),
+          updatedWorkflowStatus,
+        ),
+      );
+    }
+
+    await safeAsync(
+      this.engineService.updateTaskStatus(
+        workflowRuntimeData._id?.toString(),
+        currentTask.id,
+        TaskStatus.completed,
+      ),
+    );
+
+    const nextTasks = updatedTasks.filter(
+      (item) =>
+        currentTask.next.includes(item.name) && item.type !== TaskType.LISTEN,
+    );
+    nextTasks.forEach((task) => {
+      this.transportService.processNextTask({
+        workflowRuntimeId: workflowRuntimeData._id.toString(),
+        taskName: task.name,
+      });
+    });
 
     return {
       status: 'success',

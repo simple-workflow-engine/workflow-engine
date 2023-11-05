@@ -3,6 +3,7 @@ import mongoose, { HydratedDocument } from 'mongoose';
 import { Definition } from '../definition/definition.schema';
 import { LogObject } from '@/engine/logger';
 import { ApiProperty } from '@nestjs/swagger';
+import { Task } from '@/engine/tasks';
 
 export const RuntimeStatus = {
   pending: 'pending',
@@ -44,7 +45,7 @@ export class Runtime {
     required: true,
     default: [],
   })
-  tasks!: any[];
+  tasks!: Task[];
 
   @Prop({
     type: Array,
