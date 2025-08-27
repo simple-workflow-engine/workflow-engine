@@ -4,12 +4,12 @@ import { Runtime, RuntimeSchema } from '@/runtime/runtime.schema';
 import { Processor } from './processor';
 import { EngineService } from './engine.service';
 import { EngineTransport } from './engine.transport';
-import { KafkaModule } from '@/kafka/kafka.module';
+// import { KafkaModule } from '@/kafka/kafka.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Runtime.name, schema: RuntimeSchema }]),
-    KafkaModule,
+    // KafkaModule,
   ],
   providers: [Processor, EngineService, EngineTransport],
   controllers: [],

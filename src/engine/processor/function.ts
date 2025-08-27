@@ -1,16 +1,10 @@
 import type { Task } from '../../engine/tasks/index';
 import { safeAsync } from '@lib/utils/safe';
 import { performance } from 'node:perf_hooks';
-import { createContext, runInNewContext, measureMemory } from 'vm';
-
+import { createContext, runInNewContext } from 'vm';
 import { LogSeverity, type WorkflowLogger } from '../logger';
 import axios from 'axios';
 import { ProcessorProcess } from '../engine.interface';
-
-const httpClient = async (...args: any[]) => {
-  const result: any = await axios.apply(this, args);
-  return result.data;
-};
 
 export class FunctionProcessor implements ProcessorProcess {
   async process(
@@ -38,7 +32,7 @@ export class FunctionProcessor implements ProcessorProcess {
         warn: (...args: any[]) => loggerObj.log(LogSeverity.warn, ...args),
         error: (...args: any[]) => loggerObj.log(LogSeverity.error, ...args),
       },
-      axios: httpClient,
+      axios: axios,
       workflowParams: params,
       workflowGlobal: global,
       workflowResults: results,
@@ -59,16 +53,6 @@ export class FunctionProcessor implements ProcessorProcess {
       throw evalResult.error;
     }
 
-    const memoryResult = await safeAsync(
-      measureMemory({ mode: 'summary', context: context }).then((result) => {
-        console.log(context?.workflowParams);
-        return result.total?.jsMemoryEstimate;
-      }),
-    );
-
-    const memoryUsage =
-      (memoryResult.success ? memoryResult.data ?? 0 : 0) / 1024 / 1024;
-
     const tock = performance.now();
 
     const timeTaken = (tock - tick) / 1000;
@@ -76,13 +60,13 @@ export class FunctionProcessor implements ProcessorProcess {
     if (!evalResult.data) {
       return {
         response: {},
-        memoryUsage,
+        memoryUsage: 0,
         timeTaken,
       };
     }
     return {
       response: evalResult.data,
-      memoryUsage,
+      memoryUsage: 0,
       timeTaken,
     };
   }

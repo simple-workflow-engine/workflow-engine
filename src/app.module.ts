@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { KafkaModule } from './kafka/kafka.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './auth/auth.module';
 import { DefinitionModule } from './definition/definition.module';
@@ -29,7 +28,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
         limit: 10,
       },
     ]),
-    KafkaModule,
     AuthModule,
     DefinitionModule,
     RuntimeModule,

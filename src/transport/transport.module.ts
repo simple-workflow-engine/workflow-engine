@@ -6,9 +6,6 @@ import { Definition, DefinitionSchema } from '@/definition/definition.schema';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Runtime, RuntimeSchema } from '@/runtime/runtime.schema';
 
-import { KafkaModule } from '@/kafka/kafka.module';
-import { WorkflowProcessConsumer } from './workflow-process.consumer';
-
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -16,9 +13,8 @@ import { WorkflowProcessConsumer } from './workflow-process.consumer';
       { name: Definition.name, schema: DefinitionSchema },
     ]),
     EngineModule,
-    KafkaModule,
   ],
   controllers: [TransportController],
-  providers: [TransportService, WorkflowProcessConsumer],
+  providers: [TransportService],
 })
 export class TransportModule {}

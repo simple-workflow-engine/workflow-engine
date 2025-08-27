@@ -1,10 +1,10 @@
-import { ProducerService } from '@/kafka/producer.service';
-import { safeAsync } from '@/lib/utils/safe';
-import { TOPIC_NAME } from '@/transport/workflow-process.consumer';
+// import { ProducerService } from '@/kafka/producer.service';
+// import { safeAsync } from '@/lib/utils/safe';
+// import { TOPIC_NAME } from '@/transport/workflow-process.consumer';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
-import { randomUUID } from 'crypto';
+// import { randomUUID } from 'crypto';
 
 type AvailableTransport = 'kafka' | 'http';
 
@@ -13,7 +13,7 @@ export class EngineTransport {
   private logger = new Logger(EngineTransport.name);
 
   constructor(
-    private producerService: ProducerService,
+    // private producerService: ProducerService,
     private configService: ConfigService,
   ) {}
 
@@ -43,15 +43,15 @@ export class EngineTransport {
         }
       });
     } else if (transportName === 'kafka') {
-      safeAsync(
-        this.producerService.produce(TOPIC_NAME, {
-          value: JSON.stringify(body),
-          headers: {
-            'X-Idenpotent-Key': randomUUID(),
-            'X-Api-Key': apiKey,
-          },
-        }),
-      );
+      // safeAsync(
+      //   this.producerService.produce(TOPIC_NAME, {
+      //     value: JSON.stringify(body),
+      //     headers: {
+      //       'X-Idenpotent-Key': randomUUID(),
+      //       'X-Api-Key': apiKey,
+      //     },
+      //   }),
+      // );
     } else {
       this.logger.error('Unknown Transport');
       // How the hell did this ran?
